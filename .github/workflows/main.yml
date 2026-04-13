@@ -2,10 +2,14 @@ name: Flutter Build
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches:
+      - main
+      - master
   pull_request:
-    branches: [ "main", "master" ]
-  workflow_dispatch: # Allows manual trigger
+    branches:
+      - main
+      - master
+  workflow_dispatch: {}
 
 jobs:
   build_android:
@@ -19,13 +23,13 @@ jobs:
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
-          java-version: '17'
+          distribution: "zulu"
+          java-version: "17"
       
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: "stable"
           cache: true
           
       - name: Get dependencies
@@ -51,7 +55,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: "stable"
           cache: true
           
       - name: Get dependencies
