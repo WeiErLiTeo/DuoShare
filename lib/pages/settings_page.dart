@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../services/discovery_service.dart';
 import '../services/connection_service.dart';
 import '../services/storage_helper.dart';
+import '../services/database_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({Key? key}) : super(key: key);
@@ -133,6 +134,13 @@ class _SettingsPageState extends State<SettingsPage> {
             subtitle: '删除 DuoShare 目录中的所有文件',
             onTap: () => _showClearCacheDialog(context),
           ),
+          const SizedBox(height: 12),
+          _buildActionButton(
+            icon: Icons.chat_bubble_outline,
+            title: '清除聊天记录',
+            subtitle: '删除所有消息和剪贴板历史',
+            onTap: () => _showClearHistoryDialog(context),
+          ),
 
           const SizedBox(height: 24),
 
@@ -190,6 +198,36 @@ class _SettingsPageState extends State<SettingsPage> {
                   backgroundColor: success ? Colors.green : const Color(0xFFD32F2F),
                 ));
                 _loadStorageInfo();
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFD32F2F)),
+            child: const Text('确认删除', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showClearHistoryDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('清除聊天记录', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('确定要删除所有消息和剪贴板同步记录吗？\n\n此操作不可恢复。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final messenger = ScaffoldMessenger.of(context);
+              await DatabaseService.clearMessages();
+              if (mounted) {
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('聊天记录已清除'), backgroundColor: Colors.green),
+                );
               }
             },
             style: TextButton.styleFrom(foregroundColor: const Color(0xFFD32F2F)),

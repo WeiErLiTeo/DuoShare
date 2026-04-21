@@ -76,6 +76,32 @@ class FileRecord {
   String get fileSizeFormatted {
     if (fileSize < 1024) return '$fileSize B';
     if (fileSize < 1024 * 1024) return '${(fileSize / 1024).toStringAsFixed(1)} KB';
-    return '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (fileSize < 1024 * 1024 * 1024) return '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(fileSize / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
+}
+
+/// 文件传输状态
+enum TransferStatus { waiting, transferring, completed, failed }
+
+/// 文件传输进度追踪
+class TransferProgress {
+  final String id;
+  final String fileName;
+  final int totalBytes;
+  int receivedBytes;
+  TransferStatus status;
+  final bool isSending;
+
+  TransferProgress({
+    required this.id,
+    required this.fileName,
+    required this.totalBytes,
+    this.receivedBytes = 0,
+    this.status = TransferStatus.waiting,
+    this.isSending = false,
+  });
+
+  double get progress => totalBytes > 0 ? receivedBytes / totalBytes : 0.0;
+  String get progressPercent => '${(progress * 100).toStringAsFixed(1)}%';
 }

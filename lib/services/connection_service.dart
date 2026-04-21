@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'storage_helper.dart';
+import 'database_service.dart';
+import 'notification_service.dart';
 import '../models/duo_message.dart';
 
 /// 对等连接信息
@@ -12,13 +14,14 @@ class PeerConnection {
   final WebSocketChannel channel;
   final StreamSubscription subscription;
   bool isAlive;
+  DateTime lastPong;
 
   PeerConnection({
     required this.name,
     required this.channel,
     required this.subscription,
     this.isAlive = true,
-  });
+  }) : lastPong = DateTime.now();
 }
 
 /// WebSocket 连接管理器
@@ -53,12 +56,44 @@ class ConnectionService extends ChangeNotifier {
   /// 当前正在共享的文件 (路径 -> 文件ID)
   final Map<String, String> _sharedFiles = {};
 
+  /// 心跳定时器
+  Timer? _heartbeatTimer;
+  static const _heartbeatInterval = Duration(seconds: 15);
+  static const _heartbeatTimeout = Duration(seconds: 45);
+
+  /// 断线重连缓存 (name -> {host, port})
+  final Map<String, Map<String, dynamic>> _peerAddressCache = {};
+
+  /// 文件传输进度流
+  final StreamController<TransferProgress> _transferProgressController =
+      StreamController<TransferProgress>.broadcast();
+  Stream<TransferProgress> get transferProgressStream => _transferProgressController.stream;
+  final Map<String, TransferProgress> _activeTransfers = {};
+  Map<String, TransferProgress> get activeTransfers => Map.unmodifiable(_activeTransfers);
+
   String _localName = 'Unknown';
   String get localName => _localName;
+  bool _dbLoaded = false;
 
   /// 设置本机名称（由 DiscoveryService 提供）
   void setLocalName(String name) {
     _localName = name;
+  }
+
+  /// 从数据库加载历史记录
+  Future<void> loadHistory() async {
+    if (_dbLoaded) return;
+    try {
+      final messages = await DatabaseService.getMessages(limit: 500);
+      _messageHistory.addAll(messages);
+      final files = await DatabaseService.getFileRecords(limit: 200);
+      _fileRecords.addAll(files);
+      _dbLoaded = true;
+      notifyListeners();
+      if (kDebugMode) print('[ConnectionService] Loaded ${messages.length} messages, ${files.length} file records from DB');
+    } catch (e) {
+      if (kDebugMode) print('[ConnectionService] DB load error: $e');
+    }
   }
 
   // ==================== 服务端 ====================
@@ -76,6 +111,7 @@ class ConnectionService extends ChangeNotifier {
       if (kDebugMode) print('[ConnectionService] Server started on port $_serverPort');
 
       _server!.listen(_handleHttpRequest);
+      _startHeartbeat();
 
       return _serverPort;
     } catch (e) {
@@ -235,6 +271,9 @@ class ConnectionService extends ChangeNotifier {
       final channel = IOWebSocketChannel.connect(uri);
       await channel.ready;
 
+      // 缓存地址供断线重连使用
+      cachePeerAddress(name, host, port);
+
       late StreamSubscription sub;
       sub = channel.stream.listen(
         (data) {
@@ -243,6 +282,7 @@ class ConnectionService extends ChangeNotifier {
 
             if (message.type == MessageType.pong) {
               _peers[name]?.isAlive = true;
+              _peers[name]?.lastPong = DateTime.now();
               return;
             }
 
@@ -254,6 +294,13 @@ class ConnectionService extends ChangeNotifier {
 
             _messageHistory.add(message);
             _messageController.add(message);
+            DatabaseService.insertMessage(message, isMine: false);
+            // 触发系统通知
+            if (message.type == MessageType.text) {
+              NotificationService.showMessage(senderName: message.senderName, content: message.payload);
+            } else if (message.type == MessageType.clipboard) {
+              NotificationService.showClipboard(senderName: message.senderName, content: message.payload);
+            }
             notifyListeners();
           } catch (e) {
             if (kDebugMode) print('[ConnectionService] Parse error from $name: $e');
@@ -303,6 +350,8 @@ class ConnectionService extends ChangeNotifier {
   void broadcast(DuoMessage message) {
     _messageHistory.add(message);
     _messageController.add(message);
+    // 持久化到数据库
+    DatabaseService.insertMessage(message, isMine: message.senderName == _localName);
     for (final peer in _peers.values) {
       try {
         peer.channel.sink.add(message.toJson());
@@ -372,13 +421,15 @@ class ConnectionService extends ChangeNotifier {
       );
 
       // 记录发送
-      _fileRecords.insert(0, FileRecord(
+      final record = FileRecord(
         fileName: fileName,
         fileSize: fileSize,
         senderName: _localName,
         timestamp: DateTime.now(),
         localPath: filePath,
-      ));
+      );
+      _fileRecords.insert(0, record);
+      DatabaseService.insertFileRecord(record, isMine: true);
 
       broadcast(message);
 
@@ -410,20 +461,65 @@ class ConnectionService extends ChangeNotifier {
       final response = await request.close();
 
       if (response.statusCode == 200) {
+        // 进度追踪下载（替代 pipe，支持进度回调）
+        final transferId = '${DateTime.now().millisecondsSinceEpoch}';
+        final notifyId = transferId.hashCode; // 用于通知ID
+        
+        final tp = TransferProgress(
+          id: transferId,
+          fileName: fileName,
+          totalBytes: fileSize,
+          status: TransferStatus.transferring,
+        );
+        _activeTransfers[transferId] = tp;
+        _transferProgressController.add(tp);
+        notifyListeners();
+
+        NotificationService.showTransferProgress(
+          id: notifyId, fileName: fileName, progress: 0, total: fileSize);
+
         final sink = saveFile.openWrite();
-        await response.pipe(sink);
+        DateTime lastUpdate = DateTime.now();
+        
+        await for (final chunk in response) {
+          sink.add(chunk);
+          tp.receivedBytes += chunk.length;
+          _transferProgressController.add(tp);
+          
+          final now = DateTime.now();
+          if (now.difference(lastUpdate).inMilliseconds > 500) {
+            lastUpdate = now;
+            NotificationService.showTransferProgress(
+              id: notifyId, fileName: fileName, progress: tp.receivedBytes, total: fileSize);
+          }
+        }
+        await sink.close();
+
+        tp.status = TransferStatus.completed;
+        _transferProgressController.add(tp);
+        _activeTransfers.remove(transferId);
+        NotificationService.cancelNotification(notifyId);
 
         // 记录接收
-        _fileRecords.insert(0, FileRecord(
+        final record = FileRecord(
           fileName: fileName,
           fileSize: fileSize,
           senderName: message.senderName,
           timestamp: message.timestamp,
           localPath: savePath,
-        ));
+        );
+        _fileRecords.insert(0, record);
+        DatabaseService.insertFileRecord(record, isMine: false);
 
         _messageController.add(message);
         notifyListeners();
+
+        // 文件接收通知
+        NotificationService.showFileReceived(
+          senderName: message.senderName,
+          fileName: fileName,
+          fileSize: record.fileSizeFormatted,
+        );
 
         if (kDebugMode) print('[ConnectionService] File downloaded: $fileName -> $savePath');
       } else {
@@ -475,12 +571,79 @@ class ConnectionService extends ChangeNotifier {
       _peers.remove(name);
       notifyListeners();
       if (kDebugMode) print('[ConnectionService] Peer $name disconnected');
+      // 尝试自动重连
+      _tryReconnect(name);
     }
   }
 
   bool isConnectedTo(String name) => _peers.containsKey(name);
 
+  // ==================== 心跳检测 ====================
+
+  void _startHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(_heartbeatInterval, (_) {
+      final now = DateTime.now();
+      final toRemove = <String>[];
+
+      for (final entry in _peers.entries) {
+        if (!entry.value.isAlive &&
+            now.difference(entry.value.lastPong) > _heartbeatTimeout) {
+          toRemove.add(entry.key);
+          continue;
+        }
+        // 发送 ping
+        entry.value.isAlive = false;
+        try {
+          entry.value.channel.sink.add(DuoMessage(
+            type: MessageType.ping,
+            senderName: _localName,
+            payload: '',
+          ).toJson());
+        } catch (_) {
+          toRemove.add(entry.key);
+        }
+      }
+
+      for (final name in toRemove) {
+        if (kDebugMode) print('[ConnectionService] Heartbeat timeout: $name');
+        _removePeer(name);
+      }
+    });
+  }
+
+  // ==================== 断线自动重连 ====================
+
+  Future<void> _tryReconnect(String name) async {
+    final addr = _peerAddressCache[name];
+    if (addr == null) return;
+
+    final host = addr['host'] as String;
+    final port = addr['port'] as int;
+
+    for (int i = 1; i <= 6; i++) {
+      await Future.delayed(const Duration(seconds: 5));
+      if (_peers.containsKey(name)) return; // 已经连上了
+
+      if (kDebugMode) print('[ConnectionService] Reconnect attempt $i/6 to $name');
+      final result = await connectToPeer(name, host, port);
+      if (result) {
+        if (kDebugMode) print('[ConnectionService] Reconnected to $name');
+        return;
+      }
+    }
+    if (kDebugMode) print('[ConnectionService] Gave up reconnecting to $name');
+  }
+
+  /// 缓存 peer 地址供重连使用
+  void cachePeerAddress(String name, String host, int port) {
+    _peerAddressCache[name] = {'host': host, 'port': port};
+  }
+
   Future<void> shutdown() async {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+
     for (final peer in _peers.values) {
       peer.channel.sink.close();
       peer.subscription.cancel();
@@ -500,6 +663,7 @@ class ConnectionService extends ChangeNotifier {
   void dispose() {
     shutdown();
     _messageController.close();
+    _transferProgressController.close();
     super.dispose();
   }
 }
