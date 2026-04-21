@@ -181,8 +181,36 @@ class ConnectionService extends ChangeNotifier {
         ..headers.set('Content-Disposition', 'attachment; filename="$fileName"')
         ..headers.set('Content-Length', '$fileSize');
       
-      // 流式传输文件（不占内存）
-      await file.openRead().pipe(request.response);
+      // 发送端进度追踪（手动分块替代 pipe）
+      final transferId = 'upload_${DateTime.now().millisecondsSinceEpoch}';
+      final tp = TransferProgress(
+        id: transferId,
+        fileName: fileName,
+        totalBytes: fileSize,
+        status: TransferStatus.transferring,
+      );
+      _activeTransfers[transferId] = tp;
+      _transferProgressController.add(tp);
+      notifyListeners();
+
+      DateTime lastUpdate = DateTime.now();
+      await for (final chunk in file.openRead()) {
+        request.response.add(chunk);
+        tp.receivedBytes += chunk.length;
+        
+        final now = DateTime.now();
+        if (now.difference(lastUpdate).inMilliseconds > 300) {
+          lastUpdate = now;
+          _transferProgressController.add(tp);
+          notifyListeners();
+        }
+      }
+      await request.response.close();
+
+      tp.status = TransferStatus.completed;
+      _transferProgressController.add(tp);
+      _activeTransfers.remove(transferId);
+      notifyListeners();
       
       if (kDebugMode) print('[ConnectionService] File served: $fileName ($fileSize bytes)');
     } catch (e) {
@@ -244,6 +272,15 @@ class ConnectionService extends ChangeNotifier {
 
           _messageHistory.add(message);
           _messageController.add(message);
+          DatabaseService.insertMessage(message, isMine: false);
+
+          // 服务端侧也触发系统通知
+          if (message.type == MessageType.text) {
+            NotificationService.showMessage(senderName: message.senderName, content: message.payload);
+          } else if (message.type == MessageType.clipboard) {
+            NotificationService.showClipboard(senderName: message.senderName, content: message.payload);
+          }
+
           notifyListeners();
         } catch (e) {
           if (kDebugMode) print('[ConnectionService] Parse error: $e');
