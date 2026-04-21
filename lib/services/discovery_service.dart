@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:nsd/nsd.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'connection_service.dart';
 
 class DiscoveryService extends ChangeNotifier {
@@ -32,13 +33,32 @@ class DiscoveryService extends ChangeNotifier {
     cs.setLocalName(_localDeviceName);
   }
 
-  void _initLocalName() {
+  Future<void> _initLocalName() async {
     try {
-      _localDeviceName = Platform.localHostname;
+      final deviceInfo = DeviceInfoPlugin();
+      if (Platform.isAndroid) {
+        final info = await deviceInfo.androidInfo;
+        _localDeviceName = info.model;
+      } else if (Platform.isIOS) {
+        final info = await deviceInfo.iosInfo;
+        _localDeviceName = info.name;
+      } else if (Platform.isWindows) {
+        final info = await deviceInfo.windowsInfo;
+        _localDeviceName = info.computerName;
+      } else if (Platform.isMacOS) {
+        final info = await deviceInfo.macOsInfo;
+        _localDeviceName = info.computerName;
+      } else {
+        _localDeviceName = Platform.localHostname;
+      }
     } catch (e) {
-      _localDeviceName = 'Device_${Random().nextInt(1000)}';
+      _localDeviceName = Platform.localHostname.isNotEmpty ? Platform.localHostname : 'Device_${Random().nextInt(1000)}';
     }
+    
     notifyListeners();
+    if (_connectionService != null) {
+      _connectionService!.setLocalName(_localDeviceName);
+    }
   }
 
   /// 开始雷达扫描发现设备
