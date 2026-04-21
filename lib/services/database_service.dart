@@ -140,6 +140,16 @@ class DatabaseService {
   }
 
   // ==================== 清理操作 ====================
+  
+  /// 删除单个文件记录
+  static Future<void> deleteFileRecord(FileRecord record) async {
+    final db = await database;
+    await db.delete(
+      'file_records',
+      where: 'timestamp = ? AND file_name = ?',
+      whereArgs: [record.timestamp.toIso8601String(), record.fileName],
+    );
+  }
 
   /// 清除所有消息记录
   static Future<void> clearMessages() async {

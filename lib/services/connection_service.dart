@@ -96,6 +96,13 @@ class ConnectionService extends ChangeNotifier {
     }
   }
 
+  /// 从历史和数据库中删除单条文件记录
+  Future<void> removeFileRecord(FileRecord record) async {
+    _fileRecords.remove(record);
+    await DatabaseService.deleteFileRecord(record);
+    notifyListeners();
+  }
+
   // ==================== 服务端 ====================
 
   /// 启动 HTTP 服务端（同时处理 WebSocket 升级和文件下载）

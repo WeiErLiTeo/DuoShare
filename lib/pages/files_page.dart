@@ -19,6 +19,9 @@ class _FilesPageState extends State<FilesPage> {
   bool _isDragging = false;
   StreamSubscription<TransferProgress>? _progressSub;
   final Map<String, TransferProgress> _transfers = {};
+  
+  /// 文件过滤状态：All, Sent, Received, Images, Docs, Archives
+  String _currentFilter = 'All';
 
   @override
   void initState() {
@@ -129,31 +132,46 @@ class _FilesPageState extends State<FilesPage> {
           style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87, fontFamily: 'Manrope')),
         const SizedBox(height: 16),
 
-        // 统计卡片
+        // 统计卡片 (点击可过滤)
         Row(
           children: [
             Expanded(child: _buildCategoryCard(
               icon: Icons.upload_file, title: '已发送',
               subtitle: '${fileRecords.where((f) => f.senderName == connection.localName).length} 个文件',
-              color: const Color(0xFFD32F2F), height: 120)),
+              color: const Color(0xFFD32F2F), height: 120,
+              isSelected: _currentFilter == 'Sent',
+              onTap: () => setState(() => _currentFilter = _currentFilter == 'Sent' ? 'All' : 'Sent'),
+            )),
             const SizedBox(width: 12),
             Expanded(child: _buildCategoryCard(
               icon: Icons.download, title: '已接收',
               subtitle: '${fileRecords.where((f) => f.senderName != connection.localName).length} 个文件',
-              color: const Color(0xFFa12424), height: 120)),
+              color: const Color(0xFFa12424), height: 120,
+              isSelected: _currentFilter == 'Received',
+              onTap: () => setState(() => _currentFilter = _currentFilter == 'Received' ? 'All' : 'Received'),
+            )),
           ],
         ),
         const SizedBox(height: 12),
         Row(
           children: [
             Expanded(child: _buildCategoryCard(icon: Icons.image, title: '图片',
-              subtitle: '${_countByType(fileRecords, _imageExts)} 个', color: Colors.blue, height: 80, isMinimal: true)),
+              subtitle: '${_countByType(fileRecords, _imageExts)} 个', color: Colors.blue, height: 80, isMinimal: true,
+              isSelected: _currentFilter == 'Images',
+              onTap: () => setState(() => _currentFilter = _currentFilter == 'Images' ? 'All' : 'Images'),
+            )),
             const SizedBox(width: 8),
             Expanded(child: _buildCategoryCard(icon: Icons.description, title: '文档',
-              subtitle: '${_countByType(fileRecords, _docExts)} 个', color: Colors.orange, height: 80, isMinimal: true)),
+              subtitle: '${_countByType(fileRecords, _docExts)} 个', color: Colors.orange, height: 80, isMinimal: true,
+              isSelected: _currentFilter == 'Docs',
+              onTap: () => setState(() => _currentFilter = _currentFilter == 'Docs' ? 'All' : 'Docs'),
+            )),
             const SizedBox(width: 8),
             Expanded(child: _buildCategoryCard(icon: Icons.folder_zip, title: '压缩包',
-              subtitle: '${_countByType(fileRecords, _archiveExts)} 个', color: Colors.black54, height: 80, isMinimal: true)),
+              subtitle: '${_countByType(fileRecords, _archiveExts)} 个', color: Colors.black54, height: 80, isMinimal: true,
+              isSelected: _currentFilter == 'Archives',
+              onTap: () => setState(() => _currentFilter = _currentFilter == 'Archives' ? 'All' : 'Archives'),
+            )),
           ],
         ),
         const SizedBox(height: 24),
@@ -178,24 +196,59 @@ class _FilesPageState extends State<FilesPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('传输记录', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87, fontFamily: 'Manrope')),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: const Color(0xFFE6E8E9), borderRadius: BorderRadius.circular(8)),
-              child: Text('${fileRecords.length} 条记录', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black54)),
+            Text(_currentFilter == 'All' ? '传输记录' : '过滤结果', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87, fontFamily: 'Manrope')),
+            Row(
+              children: [
+                if (_currentFilter != 'All')
+                  InkWell(
+                    onTap: () => setState(() => _currentFilter = 'All'),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(color: const Color(0xFFD32F2F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                      child: const Text('清除过滤', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFD32F2F))),
+                    ),
+                  ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: const Color(0xFFE6E8E9), borderRadius: BorderRadius.circular(8)),
+                  child: Text('${fileRecords.length} 条总计', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black54)),
+                ),
+              ],
             ),
           ],
         ),
         const SizedBox(height: 12),
 
-        if (fileRecords.isEmpty)
-          _buildEmptyState(connection)
-        else
-          ...fileRecords.map((record) => _buildFileItem(
-            context: context,
-            record: record,
-            isMe: record.senderName == connection.localName,
-          )),
+        Builder(
+          builder: (context) {
+            var filtered = fileRecords;
+            if (_currentFilter == 'Sent') {
+              filtered = filtered.where((f) => f.senderName == connection.localName).toList();
+            } else if (_currentFilter == 'Received') {
+              filtered = filtered.where((f) => f.senderName != connection.localName).toList();
+            } else if (_currentFilter == 'Images') {
+              filtered = filtered.where((f) => _imageExts.contains(f.fileName.split('.').last.toLowerCase())).toList();
+            } else if (_currentFilter == 'Docs') {
+              filtered = filtered.where((f) => _docExts.contains(f.fileName.split('.').last.toLowerCase())).toList();
+            } else if (_currentFilter == 'Archives') {
+              filtered = filtered.where((f) => _archiveExts.contains(f.fileName.split('.').last.toLowerCase())).toList();
+            }
+
+            if (filtered.isEmpty) {
+              return _buildEmptyState(connection);
+            }
+
+            return Column(
+              children: filtered.map((record) => _buildFileItem(
+                context: context,
+                connection: connection,
+                record: record,
+                isMe: record.senderName == connection.localName,
+              )).toList(),
+            );
+          },
+        ),
         const SizedBox(height: 80),
       ],
     );
@@ -359,54 +412,74 @@ class _FilesPageState extends State<FilesPage> {
     );
   }
 
-  Widget _buildFileItem({required BuildContext context, required FileRecord record, required bool isMe}) {
+  Widget _buildFileItem({required BuildContext context, required ConnectionService connection, required FileRecord record, required bool isMe}) {
     final ext = record.fileName.split('.').last.toLowerCase();
     final isImage = _imageExts.contains(ext);
     final hasPath = record.localPath != null && File(record.localPath!).existsSync();
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.withValues(alpha: 0.1))),
-      elevation: 0,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: hasPath ? () => _openFilePreview(context, record) : null,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              // 缩略图或文件图标
-              Container(
-                width: 48, height: 48,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF2F4F5),
-                  borderRadius: BorderRadius.circular(10),
+    return Dismissible(
+      key: Key('${record.timestamp.millisecondsSinceEpoch}_${record.fileName}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFD32F2F),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      onDismissed: (direction) {
+        connection.removeFileRecord(record);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已删除该记录'), duration: Duration(seconds: 2))
+        );
+      },
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.withValues(alpha: 0.1))),
+        elevation: 0,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: hasPath ? () => _openFilePreview(context, record) : null,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                // 缩略图或文件图标
+                Container(
+                  width: 48, height: 48,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF2F4F5),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: isImage && hasPath
+                      ? Image.file(File(record.localPath!), cacheWidth: 150, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Icon(_getFileIcon(ext), color: Colors.black38))
+                      : Icon(_getFileIcon(ext), color: const Color(0xFFD32F2F), size: 24),
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: isImage && hasPath
-                    ? Image.file(File(record.localPath!), cacheWidth: 150, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Icon(_getFileIcon(ext), color: Colors.black38))
-                    : Icon(_getFileIcon(ext), color: const Color(0xFFD32F2F), size: 24),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(record.fileName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(isMe ? Icons.upload : Icons.download, size: 12, color: Colors.black38),
-                        const SizedBox(width: 4),
-                        Text('${isMe ? "发送" : "来自 ${record.senderName}"} · ${record.fileSizeFormatted}',
-                            style: const TextStyle(fontSize: 11, color: Colors.black38)),
-                      ],
-                    ),
-                  ],
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(record.fileName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(isMe ? Icons.upload : Icons.download, size: 12, color: Colors.black38),
+                          const SizedBox(width: 4),
+                          Text('${isMe ? "发送" : "来自 ${record.senderName}"} · ${record.fileSizeFormatted}',
+                              style: const TextStyle(fontSize: 11, color: Colors.black38)),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Text(_formatTime(record.timestamp), style: const TextStyle(fontSize: 10, color: Colors.black38)),
-            ],
+                Text(_formatTime(record.timestamp), style: const TextStyle(fontSize: 10, color: Colors.black38)),
+              ],
+            ),
           ),
         ),
       ),
@@ -450,22 +523,30 @@ class _FilesPageState extends State<FilesPage> {
   Widget _buildCategoryCard({
     required IconData icon, required String title, required String subtitle,
     required Color color, required double height, bool isMinimal = false,
+    bool isSelected = false, VoidCallback? onTap,
   }) {
-    return Container(
-      height: height,
-      padding: EdgeInsets.all(isMinimal ? 12 : 16),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(isMinimal ? 12 : 16)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Icon(icon, size: isMinimal ? 22 : 32, color: color),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: isMinimal ? 13 : 16, color: Colors.black87, fontFamily: 'Manrope')),
-            const SizedBox(height: 2),
-            Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.black54)),
-          ])
-        ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: height,
+        padding: EdgeInsets.all(isMinimal ? 12 : 16),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withValues(alpha: 0.2) : color.withValues(alpha: 0.1), 
+          borderRadius: BorderRadius.circular(isMinimal ? 12 : 16),
+          border: isSelected ? Border.all(color: color.withValues(alpha: 0.5), width: 2) : Border.all(color: Colors.transparent, width: 2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Icon(icon, size: isMinimal ? 22 : 32, color: color),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: isMinimal ? 13 : 16, color: Colors.black87, fontFamily: 'Manrope')),
+              const SizedBox(height: 2),
+              Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+            ])
+          ],
+        ),
       ),
     );
   }
