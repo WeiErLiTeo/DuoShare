@@ -18,11 +18,19 @@ jobs:
           channel: "stable"
           cache: true
 
+      - name: Cache Pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\Pub\Cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
       - name: Get dependencies
         run: flutter pub get
         
       - name: Build Windows
-        run: flutter build windows --release
+        run: flutter build windows --release --obfuscate --split-debug-info=build/windows/symbols
         
       - name: Upload Windows Release
         uses: actions/upload-artifact@v4

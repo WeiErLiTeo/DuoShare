@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'pages/devices_page.dart';
 import 'pages/clipboard_page.dart';
 import 'pages/files_page.dart';
@@ -7,13 +10,32 @@ import 'pages/messages_page.dart';
 import 'pages/settings_page.dart';
 import 'services/discovery_service.dart';
 import 'services/connection_service.dart';
+import 'services/notification_service.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 沉浸式状态栏 (Edge-to-Edge)
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarDividerColor: Colors.transparent,
+  ));
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
   final connectionService = ConnectionService();
   final discoveryService = DiscoveryService();
-
-  // 将两个服务关联起来
   discoveryService.setConnectionService(connectionService);
+
+  // Android 权限请求
+  _requestPermissions();
+
+  // 初始化通知服务
+  NotificationService.initialize();
+
+  // 从 SQLite 加载历史记录
+  connectionService.loadHistory();
 
   runApp(
     MultiProvider(
@@ -26,16 +48,38 @@ void main() {
   );
 }
 
+/// 请求平台所需的运行时权限
+Future<void> _requestPermissions() async {
+  if (Platform.isAndroid) {
+    // Android 13+ 需要通知权限
+    if (await Permission.notification.isDenied) {
+      await Permission.notification.request();
+    }
+    // 请求忽略电池优化，避免后台下载大文件被杀
+    if (await Permission.ignoreBatteryOptimizations.isDenied) {
+      await Permission.ignoreBatteryOptimizations.request();
+    }
+  }
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'DuoShare',
-      debugShowCheckedModeBanner: false,
-      theme: _buildJapaneseRedWhiteTheme(),
-      home: const ResponsiveScaffold(),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+      ),
+      child: MaterialApp(
+        title: 'DuoShare',
+        debugShowCheckedModeBanner: false,
+        theme: _buildJapaneseRedWhiteTheme(),
+        home: const ResponsiveScaffold(),
+      ),
     );
   }
 
