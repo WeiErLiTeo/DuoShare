@@ -1,9 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/duo_message.dart';
+
+/// 文件传输大小限制 (10 MB)
+const int _maxFileSize = 10 * 1024 * 1024;
 
 /// 对等连接信息
 class PeerConnection {
@@ -45,6 +50,10 @@ class ConnectionService extends ChangeNotifier {
   /// 本机消息历史记录（内存缓存）
   final List<DuoMessage> _messageHistory = [];
   List<DuoMessage> get messageHistory => List.unmodifiable(_messageHistory);
+
+  /// 文件传输记录
+  final List<FileRecord> _fileRecords = [];
+  List<FileRecord> get fileRecords => List.unmodifiable(_fileRecords);
 
   String _localName = 'Unknown';
   String get localName => _localName;
@@ -125,6 +134,12 @@ class ConnectionService extends ChangeNotifier {
             return;
           }
 
+          // 处理收到的文件
+          if (message.type == MessageType.fileData) {
+            _handleReceivedFile(message);
+            return;
+          }
+
           _messageHistory.add(message);
           _messageController.add(message);
           notifyListeners();
@@ -166,6 +181,12 @@ class ConnectionService extends ChangeNotifier {
 
             if (message.type == MessageType.pong) {
               _peers[name]?.isAlive = true;
+              return;
+            }
+
+            // 处理收到的文件
+            if (message.type == MessageType.fileData) {
+              _handleReceivedFile(message);
               return;
             }
 
@@ -255,6 +276,98 @@ class ConnectionService extends ChangeNotifier {
     ));
   }
 
+  // ==================== 文件传输 ====================
+
+  /// 发送文件给所有已连接的设备
+  /// 读取文件内容，base64 编码后通过 WebSocket 发送
+  /// 返回: null = 成功, 字符串 = 错误信息
+  Future<String?> sendFile(String filePath) async {
+    final file = File(filePath);
+
+    if (!await file.exists()) {
+      return '文件不存在';
+    }
+
+    final fileSize = await file.length();
+    if (fileSize > _maxFileSize) {
+      return '文件过大 (最大 ${_maxFileSize ~/ (1024 * 1024)} MB)';
+    }
+
+    if (_peers.isEmpty) {
+      return '没有已连接的设备';
+    }
+
+    try {
+      final bytes = await file.readAsBytes();
+      final base64Content = base64Encode(bytes);
+      final fileName = filePath.split(Platform.pathSeparator).last;
+
+      final message = DuoMessage(
+        type: MessageType.fileData,
+        senderName: _localName,
+        payload: base64Content,
+        metadata: {
+          'fileName': fileName,
+          'fileSize': fileSize,
+        },
+      );
+
+      // 记录发送记录
+      _fileRecords.insert(0, FileRecord(
+        fileName: fileName,
+        fileSize: fileSize,
+        senderName: _localName,
+        timestamp: DateTime.now(),
+        localPath: filePath,
+      ));
+
+      broadcast(message);
+
+      if (kDebugMode) print('[ConnectionService] File sent: $fileName ($fileSize bytes)');
+      return null; // 成功
+    } catch (e) {
+      if (kDebugMode) print('[ConnectionService] File send error: $e');
+      return '发送失败: $e';
+    }
+  }
+
+  /// 处理收到的文件数据
+  Future<void> _handleReceivedFile(DuoMessage message) async {
+    try {
+      final fileName = message.metadata?['fileName'] as String? ?? 'unknown_file';
+      final fileSize = message.metadata?['fileSize'] as int? ?? 0;
+      final bytes = base64Decode(message.payload);
+
+      // 保存到本地下载目录
+      final dir = await getApplicationDocumentsDirectory();
+      final saveDir = Directory('${dir.path}/DuoShare');
+      if (!await saveDir.exists()) {
+        await saveDir.create(recursive: true);
+      }
+
+      final savePath = '${saveDir.path}/$fileName';
+      final file = File(savePath);
+      await file.writeAsBytes(bytes);
+
+      // 记录接收记录
+      _fileRecords.insert(0, FileRecord(
+        fileName: fileName,
+        fileSize: fileSize,
+        senderName: message.senderName,
+        timestamp: message.timestamp,
+        localPath: savePath,
+      ));
+
+      // 通知 UI
+      _messageController.add(message);
+      notifyListeners();
+
+      if (kDebugMode) print('[ConnectionService] File received: $fileName -> $savePath');
+    } catch (e) {
+      if (kDebugMode) print('[ConnectionService] File receive error: $e');
+    }
+  }
+
   // ==================== 连接管理 ====================
 
   /// 断开与某个设备的连接
@@ -305,3 +418,4 @@ class ConnectionService extends ChangeNotifier {
     super.dispose();
   }
 }
+
