@@ -1,14 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/duo_message.dart';
-
-/// 文件传输大小限制 (10 MB)
-const int _maxFileSize = 10 * 1024 * 1024;
 
 /// 对等连接信息
 class PeerConnection {
@@ -28,8 +24,7 @@ class PeerConnection {
 /// WebSocket 连接管理器
 /// 
 /// 每台设备同时充当服务端（接受连接）和客户端（发起连接）。
-/// 使用 dart:io 的 HttpServer 作为 WebSocket 服务端，
-/// 使用 web_socket_channel 作为客户端。
+/// HTTP 服务端同时提供 WebSocket 升级和文件下载功能。
 class ConnectionService extends ChangeNotifier {
   HttpServer? _server;
   int _serverPort = 0;
@@ -55,6 +50,9 @@ class ConnectionService extends ChangeNotifier {
   final List<FileRecord> _fileRecords = [];
   List<FileRecord> get fileRecords => List.unmodifiable(_fileRecords);
 
+  /// 当前正在共享的文件 (路径 -> 文件ID)
+  final Map<String, String> _sharedFiles = {};
+
   String _localName = 'Unknown';
   String get localName => _localName;
 
@@ -65,7 +63,7 @@ class ConnectionService extends ChangeNotifier {
 
   // ==================== 服务端 ====================
 
-  /// 启动 WebSocket 服务端，监听指定端口（0 = 系统自动分配）
+  /// 启动 HTTP 服务端（同时处理 WebSocket 升级和文件下载）
   Future<int> startServer({int port = 0}) async {
     if (_isRunning) return _serverPort;
 
@@ -77,12 +75,7 @@ class ConnectionService extends ChangeNotifier {
 
       if (kDebugMode) print('[ConnectionService] Server started on port $_serverPort');
 
-      _server!.transform(WebSocketTransformer()).listen(
-        _handleIncomingConnection,
-        onError: (error) {
-          if (kDebugMode) print('[ConnectionService] Server error: $error');
-        },
-      );
+      _server!.listen(_handleHttpRequest);
 
       return _serverPort;
     } catch (e) {
@@ -93,9 +86,83 @@ class ConnectionService extends ChangeNotifier {
     }
   }
 
+  /// 路由 HTTP 请求：WebSocket 升级 或 文件下载
+  void _handleHttpRequest(HttpRequest request) {
+    final path = request.uri.path;
+
+    if (WebSocketTransformer.isUpgradeRequest(request)) {
+      // WebSocket 升级请求
+      WebSocketTransformer.upgrade(request).then(_handleIncomingConnection);
+    } else if (path.startsWith('/file/')) {
+      // 文件下载请求
+      _handleFileDownload(request);
+    } else {
+      // 其他请求返回 404
+      request.response
+        ..statusCode = HttpStatus.notFound
+        ..write('Not Found')
+        ..close();
+    }
+  }
+
+  /// 处理文件下载请求
+  void _handleFileDownload(HttpRequest request) async {
+    final fileId = request.uri.path.replaceFirst('/file/', '');
+    
+    // 在共享文件中查找对应的本地路径
+    String? filePath;
+    for (final entry in _sharedFiles.entries) {
+      if (entry.value == fileId) {
+        filePath = entry.key;
+        break;
+      }
+    }
+
+    if (filePath == null) {
+      request.response
+        ..statusCode = HttpStatus.notFound
+        ..write('File not found')
+        ..close();
+      return;
+    }
+
+    final file = File(filePath);
+    if (!await file.exists()) {
+      request.response
+        ..statusCode = HttpStatus.notFound
+        ..write('File not found')
+        ..close();
+      return;
+    }
+
+    try {
+      final fileSize = await file.length();
+      final fileName = filePath.split(Platform.pathSeparator).last;
+      
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.set('Content-Type', 'application/octet-stream')
+        ..headers.set('Content-Disposition', 'attachment; filename="$fileName"')
+        ..headers.set('Content-Length', '$fileSize');
+      
+      // 流式传输文件（不占内存）
+      await file.openRead().pipe(request.response);
+      
+      if (kDebugMode) print('[ConnectionService] File served: $fileName ($fileSize bytes)');
+    } catch (e) {
+      if (kDebugMode) print('[ConnectionService] File serve error: $e');
+      try {
+        request.response
+          ..statusCode = HttpStatus.internalServerError
+          ..write('Error')
+          ..close();
+      } catch (_) {}
+    }
+  }
+
   /// 处理一个接入的 WebSocket 连接
   void _handleIncomingConnection(WebSocket ws) {
-    if (kDebugMode) print('[ConnectionService] Incoming connection');
+    if (kDebugMode) print('[ConnectionService] Incoming WebSocket connection');
 
     final channel = IOWebSocketChannel(ws);
     String peerName = 'Peer_${_peers.length}';
@@ -108,7 +175,6 @@ class ConnectionService extends ChangeNotifier {
           // 第一条消息中提取对方的名字
           if (peerName.startsWith('Peer_')) {
             peerName = message.senderName;
-            // 如果已经有同名连接，不重复添加
             if (_peers.containsKey(peerName)) {
               if (kDebugMode) print('[ConnectionService] Duplicate peer $peerName, ignoring');
               channel.sink.close();
@@ -134,9 +200,9 @@ class ConnectionService extends ChangeNotifier {
             return;
           }
 
-          // 处理收到的文件
-          if (message.type == MessageType.fileData) {
-            _handleReceivedFile(message);
+          // 处理文件通知 → 通过 HTTP 下载
+          if (message.type == MessageType.fileOffer) {
+            _handleFileOffer(message);
             return;
           }
 
@@ -147,9 +213,7 @@ class ConnectionService extends ChangeNotifier {
           if (kDebugMode) print('[ConnectionService] Parse error: $e');
         }
       },
-      onDone: () {
-        _removePeer(peerName);
-      },
+      onDone: () => _removePeer(peerName),
       onError: (error) {
         if (kDebugMode) print('[ConnectionService] Peer $peerName error: $error');
         _removePeer(peerName);
@@ -169,8 +233,6 @@ class ConnectionService extends ChangeNotifier {
     try {
       final uri = Uri.parse('ws://$host:$port');
       final channel = IOWebSocketChannel.connect(uri);
-
-      // 等待连接就绪
       await channel.ready;
 
       late StreamSubscription sub;
@@ -184,9 +246,9 @@ class ConnectionService extends ChangeNotifier {
               return;
             }
 
-            // 处理收到的文件
-            if (message.type == MessageType.fileData) {
-              _handleReceivedFile(message);
+            // 处理文件通知 → 通过 HTTP 下载
+            if (message.type == MessageType.fileOffer) {
+              _handleFileOffer(message);
               return;
             }
 
@@ -197,9 +259,7 @@ class ConnectionService extends ChangeNotifier {
             if (kDebugMode) print('[ConnectionService] Parse error from $name: $e');
           }
         },
-        onDone: () {
-          _removePeer(name);
-        },
+        onDone: () => _removePeer(name),
         onError: (error) {
           if (kDebugMode) print('[ConnectionService] Connection error with $name: $error');
           _removePeer(name);
@@ -212,7 +272,6 @@ class ConnectionService extends ChangeNotifier {
         subscription: sub,
       );
 
-      // 立刻发送一条 ping 让对方知道我们是谁
       _sendTo(name, DuoMessage(
         type: MessageType.ping,
         senderName: _localName,
@@ -230,7 +289,6 @@ class ConnectionService extends ChangeNotifier {
 
   // ==================== 消息收发 ====================
 
-  /// 向指定对等方发送消息
   void _sendTo(String peerName, DuoMessage message) {
     final peer = _peers[peerName];
     if (peer != null) {
@@ -242,12 +300,9 @@ class ConnectionService extends ChangeNotifier {
     }
   }
 
-  /// 向所有已连接的设备广播消息
   void broadcast(DuoMessage message) {
-    // 也把自己发的消息加入历史
     _messageHistory.add(message);
     _messageController.add(message);
-
     for (final peer in _peers.values) {
       try {
         peer.channel.sink.add(message.toJson());
@@ -258,7 +313,6 @@ class ConnectionService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 发送文本消息给所有对等方
   void sendTextMessage(String text) {
     broadcast(DuoMessage(
       type: MessageType.text,
@@ -267,7 +321,6 @@ class ConnectionService extends ChangeNotifier {
     ));
   }
 
-  /// 发送剪贴板内容给所有对等方
   void sendClipboard(String content) {
     broadcast(DuoMessage(
       type: MessageType.clipboard,
@@ -276,10 +329,9 @@ class ConnectionService extends ChangeNotifier {
     ));
   }
 
-  // ==================== 文件传输 ====================
+  // ==================== 文件传输 (HTTP 直传，无大小限制) ====================
 
-  /// 发送文件给所有已连接的设备
-  /// 读取文件内容，base64 编码后通过 WebSocket 发送
+  /// 发送文件：将文件注册到 HTTP 服务端，然后通过 WebSocket 通知所有对等方下载
   /// 返回: null = 成功, 字符串 = 错误信息
   Future<String?> sendFile(String filePath) async {
     final file = File(filePath);
@@ -288,31 +340,38 @@ class ConnectionService extends ChangeNotifier {
       return '文件不存在';
     }
 
-    final fileSize = await file.length();
-    if (fileSize > _maxFileSize) {
-      return '文件过大 (最大 ${_maxFileSize ~/ (1024 * 1024)} MB)';
-    }
-
     if (_peers.isEmpty) {
       return '没有已连接的设备';
     }
 
+    if (!_isRunning) {
+      return 'HTTP 服务未启动';
+    }
+
     try {
-      final bytes = await file.readAsBytes();
-      final base64Content = base64Encode(bytes);
+      final fileSize = await file.length();
       final fileName = filePath.split(Platform.pathSeparator).last;
 
+      // 生成唯一文件ID，注册到 HTTP 共享列表
+      final fileId = '${DateTime.now().millisecondsSinceEpoch}_${fileName.hashCode.abs()}';
+      _sharedFiles[filePath] = fileId;
+
+      // 获取本机 IP 地址用于拼接下载链接
+      final localIp = await _getLocalIp();
+      final downloadUrl = 'http://$localIp:$_serverPort/file/$fileId';
+
+      // 通过 WebSocket 通知对方来下载
       final message = DuoMessage(
-        type: MessageType.fileData,
+        type: MessageType.fileOffer,
         senderName: _localName,
-        payload: base64Content,
+        payload: downloadUrl,
         metadata: {
           'fileName': fileName,
           'fileSize': fileSize,
         },
       );
 
-      // 记录发送记录
+      // 记录发送
       _fileRecords.insert(0, FileRecord(
         fileName: fileName,
         fileSize: fileSize,
@@ -323,22 +382,24 @@ class ConnectionService extends ChangeNotifier {
 
       broadcast(message);
 
-      if (kDebugMode) print('[ConnectionService] File sent: $fileName ($fileSize bytes)');
-      return null; // 成功
+      if (kDebugMode) print('[ConnectionService] File shared: $fileName ($fileSize bytes) at $downloadUrl');
+      return null;
     } catch (e) {
-      if (kDebugMode) print('[ConnectionService] File send error: $e');
-      return '发送失败: $e';
+      if (kDebugMode) print('[ConnectionService] File share error: $e');
+      return '分享失败: $e';
     }
   }
 
-  /// 处理收到的文件数据
-  Future<void> _handleReceivedFile(DuoMessage message) async {
+  /// 处理收到的文件通知：通过 HTTP 下载文件到本地
+  Future<void> _handleFileOffer(DuoMessage message) async {
     try {
+      final downloadUrl = message.payload;
       final fileName = message.metadata?['fileName'] as String? ?? 'unknown_file';
       final fileSize = message.metadata?['fileSize'] as int? ?? 0;
-      final bytes = base64Decode(message.payload);
 
-      // 保存到本地下载目录
+      if (kDebugMode) print('[ConnectionService] Downloading file: $fileName from $downloadUrl');
+
+      // 创建保存目录
       final dir = await getApplicationDocumentsDirectory();
       final saveDir = Directory('${dir.path}/DuoShare');
       if (!await saveDir.exists()) {
@@ -346,31 +407,62 @@ class ConnectionService extends ChangeNotifier {
       }
 
       final savePath = '${saveDir.path}/$fileName';
-      final file = File(savePath);
-      await file.writeAsBytes(bytes);
+      final saveFile = File(savePath);
 
-      // 记录接收记录
-      _fileRecords.insert(0, FileRecord(
-        fileName: fileName,
-        fileSize: fileSize,
-        senderName: message.senderName,
-        timestamp: message.timestamp,
-        localPath: savePath,
-      ));
+      // 通过 HTTP GET 流式下载（不占内存）
+      final client = HttpClient();
+      final request = await client.getUrl(Uri.parse(downloadUrl));
+      final response = await request.close();
 
-      // 通知 UI
-      _messageController.add(message);
-      notifyListeners();
+      if (response.statusCode == 200) {
+        final sink = saveFile.openWrite();
+        await response.pipe(sink);
 
-      if (kDebugMode) print('[ConnectionService] File received: $fileName -> $savePath');
+        // 记录接收
+        _fileRecords.insert(0, FileRecord(
+          fileName: fileName,
+          fileSize: fileSize,
+          senderName: message.senderName,
+          timestamp: message.timestamp,
+          localPath: savePath,
+        ));
+
+        _messageController.add(message);
+        notifyListeners();
+
+        if (kDebugMode) print('[ConnectionService] File downloaded: $fileName -> $savePath');
+      } else {
+        if (kDebugMode) print('[ConnectionService] Download failed: HTTP ${response.statusCode}');
+      }
+
+      client.close();
     } catch (e) {
-      if (kDebugMode) print('[ConnectionService] File receive error: $e');
+      if (kDebugMode) print('[ConnectionService] File download error: $e');
     }
+  }
+
+  /// 获取本机局域网 IP 地址
+  Future<String> _getLocalIp() async {
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+        includeLinkLocal: false,
+      );
+      for (final iface in interfaces) {
+        for (final addr in iface.addresses) {
+          if (!addr.isLoopback) {
+            return addr.address;
+          }
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) print('[ConnectionService] Failed to get local IP: $e');
+    }
+    return '127.0.0.1';
   }
 
   // ==================== 连接管理 ====================
 
-  /// 断开与某个设备的连接
   void disconnectPeer(String name) {
     final peer = _peers[name];
     if (peer != null) {
@@ -382,7 +474,6 @@ class ConnectionService extends ChangeNotifier {
     }
   }
 
-  /// 内部：移除断开的对等方
   void _removePeer(String name) {
     if (_peers.containsKey(name)) {
       _peers[name]?.subscription.cancel();
@@ -392,16 +483,15 @@ class ConnectionService extends ChangeNotifier {
     }
   }
 
-  /// 检查是否已连接到某设备
   bool isConnectedTo(String name) => _peers.containsKey(name);
 
-  /// 关闭服务，断开所有连接
   Future<void> shutdown() async {
     for (final peer in _peers.values) {
       peer.channel.sink.close();
       peer.subscription.cancel();
     }
     _peers.clear();
+    _sharedFiles.clear();
 
     await _server?.close(force: true);
     _server = null;
@@ -418,4 +508,3 @@ class ConnectionService extends ChangeNotifier {
     super.dispose();
   }
 }
-

@@ -67,7 +67,7 @@ class FilesPage extends StatelessWidget {
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    '当前支持 10 MB 以内的文件传输 (WebSocket 通道)',
+                    '局域网 HTTP 直传，无文件大小限制',
                     style: TextStyle(fontSize: 11, color: Colors.black54),
                   ),
                 ),

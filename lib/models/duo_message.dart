@@ -4,8 +4,7 @@ import 'dart:convert';
 enum MessageType {
   text,       // 普通文本消息
   clipboard,  // 剪贴板同步
-  fileOffer,  // 文件传输请求 (payload = 文件名, metadata = {size, mimeType})
-  fileData,   // 文件数据传输 (payload = base64 编码的文件内容, metadata = {fileName})
+  fileOffer,  // 文件传输通知 (payload = HTTP 下载链接, metadata = {fileName, fileSize})
   ping,       // 心跳检测
   pong,       // 心跳回应
 }
