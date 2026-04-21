@@ -105,7 +105,29 @@ class DiscoveryService extends ChangeNotifier {
     final name = service.name ?? 'Unknown';
     if (host == null || port == null) return false;
 
-    return await _connectionService!.connectToPeer(name, host, port);
+    // Windows 不支持 .local mDNS 域名解析，需要手动转换为 IP 地址
+    String resolvedHost = host;
+    if (host.endsWith('.local') || host.endsWith('.local.')) {
+      try {
+        final addresses = await InternetAddress.lookup(host);
+        if (addresses.isNotEmpty) {
+          resolvedHost = addresses.first.address;
+          if (kDebugMode) print('[DiscoveryService] Resolved $host -> $resolvedHost');
+        }
+      } catch (e) {
+        if (kDebugMode) print('[DiscoveryService] Failed to resolve $host: $e');
+        // 尝试直接用 nsd 提供的 addresses 字段
+        final addrs = service.addresses;
+        if (addrs != null && addrs.isNotEmpty) {
+          resolvedHost = addrs.first.address;
+          if (kDebugMode) print('[DiscoveryService] Using nsd address: $resolvedHost');
+        } else {
+          return false;
+        }
+      }
+    }
+
+    return await _connectionService!.connectToPeer(name, resolvedHost, port);
   }
 
   /// 启动 HTTP 时将本机注册广播至局域网
