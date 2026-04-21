@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/discovery_service.dart';
+import '../services/connection_service.dart';
 
 class DevicesPage extends StatelessWidget {
   const DevicesPage({Key? key}) : super(key: key);
@@ -8,27 +9,59 @@ class DevicesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final discovery = context.watch<DiscoveryService>();
+    final connection = context.watch<ConnectionService>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFFFF), // 纯白主体背景
+      backgroundColor: const Color(0xFFFFFFFF),
       body: ListView(
         padding: const EdgeInsets.all(12.0),
         children: [
           // 1. Mesh Status Hero
-          _buildMeshStatusHero(context, discovery),
+          _buildMeshStatusHero(context, discovery, connection),
           const SizedBox(height: 12),
 
           // 2. Stats Grid
           Row(
             children: [
-              Expanded(child: _buildStatCard(context, Icons.speed, '传输速度', discovery.isDiscovering ? '监测中' : '待命')),
+              Expanded(child: _buildStatCard(context, Icons.link, '已连接', '${connection.connectedPeers.length} 台设备')),
               const SizedBox(width: 12),
-              Expanded(child: _buildStatCard(context, Icons.timer, '延迟', discovery.isDiscovering ? '< 5ms' : '-')),
+              Expanded(child: _buildStatCard(context, Icons.cell_tower, '服务端口', connection.isRunning ? '${connection.serverPort}' : '未启动')),
             ],
           ),
           const SizedBox(height: 24),
 
           // 3. Connected Devices List
+          if (connection.connectedPeers.isNotEmpty) ...[
+            _buildSectionHeader('已连接设备', '${connection.connectedPeers.length.toString().padLeft(2, '0')} 已连接'),
+            const SizedBox(height: 8),
+            ...connection.connectedPeers.map((name) => _buildDeviceCard(
+              context: context,
+              icon: Icons.devices,
+              name: name,
+              subtitle: 'WebSocket 通道已建立',
+              trailingWidget: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.bolt, color: Colors.green, size: 18),
+                  const SizedBox(width: 4),
+                  InkWell(
+                    onTap: () => connection.disconnectPeer(name),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text('断开', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFD32F2F))),
+                    ),
+                  ),
+                ],
+              ),
+            )),
+            const SizedBox(height: 24),
+          ],
+
+          // 4. Discovered Devices (from mDNS)
           _buildSectionHeader('局域网设备', '${discovery.devices.length.toString().padLeft(2, '0')} 在线 / ${discovery.localDeviceName}'),
           const SizedBox(height: 8),
           
@@ -46,17 +79,22 @@ class DevicesPage extends StatelessWidget {
               ),
             )
           else
-            ...discovery.devices.map((service) => _buildDeviceCard(
-              context: context,
-              icon: service.name?.toLowerCase().contains('phone') == true ? Icons.smartphone : Icons.computer,
-              name: service.name ?? '未知终端',
-              subtitle: service.host != null ? '内网通道: ${service.host}:${service.port}' : '解析通道中...',
-              trailingWidget: const Icon(Icons.bolt, color: Colors.green, size: 18),
-            )),
+            ...discovery.devices.map((service) {
+              final isConnected = connection.isConnectedTo(service.name ?? '');
+              return _buildDeviceCard(
+                context: context,
+                icon: service.name?.toLowerCase().contains('phone') == true ? Icons.smartphone : Icons.computer,
+                name: service.name ?? '未知终端',
+                subtitle: service.host != null ? '${service.host}:${service.port}' : '解析通道中...',
+                trailingWidget: isConnected
+                    ? const Icon(Icons.check_circle, color: Colors.green, size: 20)
+                    : _buildConnectButton(context, discovery, service),
+              );
+            }),
           
           const SizedBox(height: 16),
 
-          // 4. Contextual Help Card
+          // 5. Contextual Help Card
           _buildHelpCard(context),
           const SizedBox(height: 80),
         ],
@@ -76,7 +114,31 @@ class DevicesPage extends StatelessWidget {
     );
   }
 
-  Widget _buildMeshStatusHero(BuildContext context, DiscoveryService discovery) {
+  Widget _buildConnectButton(BuildContext context, DiscoveryService discovery, dynamic service) {
+    return InkWell(
+      onTap: () async {
+        final success = await discovery.connectToDevice(service);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(success ? '已连接到 ${service.name}' : '连接失败'),
+            backgroundColor: success ? Colors.green : const Color(0xFFD32F2F),
+            duration: const Duration(seconds: 2),
+          ));
+        }
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFD32F2F),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Text('连接', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+      ),
+    );
+  }
+
+  Widget _buildMeshStatusHero(BuildContext context, DiscoveryService discovery, ConnectionService connection) {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
@@ -99,17 +161,19 @@ class DevicesPage extends StatelessWidget {
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: discovery.isDiscovering ? Colors.green : const Color(0xFFD32F2F),
+                  color: connection.connectedPeers.isNotEmpty ? Colors.green : (discovery.isDiscovering ? Colors.orange : const Color(0xFFD32F2F)),
                   shape: BoxShape.circle,
                 ),
               ),
               const SizedBox(width: 6),
               Text(
-                discovery.isDiscovering ? '本地网状网络 (活跃组网中)' : '本地网状网络',
+                connection.connectedPeers.isNotEmpty
+                    ? '网状网络 (${connection.connectedPeers.length} 台设备已连接)'
+                    : (discovery.isDiscovering ? '正在搜索设备...' : '本地网状网络'),
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
-                  color: discovery.isDiscovering ? Colors.green : const Color(0xFFD32F2F),
+                  color: connection.connectedPeers.isNotEmpty ? Colors.green : (discovery.isDiscovering ? Colors.orange : const Color(0xFFD32F2F)),
                   letterSpacing: 1.0,
                 ),
               ),
@@ -117,12 +181,16 @@ class DevicesPage extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            discovery.isDiscovering ? '设备互联进行中' : '雷达待命中',
+            connection.connectedPeers.isNotEmpty
+                ? '设备互联中'
+                : (discovery.isDiscovering ? '雷达扫描中' : '雷达待命中'),
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
           ),
           const SizedBox(height: 4),
           Text(
-            discovery.isDiscovering ? '发现 ${discovery.devices.length} 个终端并正在自动建联' : '未开启服务广播。仅当开启时才可见别人。',
+            connection.connectedPeers.isNotEmpty
+                ? '已建立 WebSocket 双向通道，可以互传数据了'
+                : (discovery.isDiscovering ? '发现 ${discovery.devices.length} 个终端，点击"连接"建立通道' : '点击下方按钮开始扫描局域网设备'),
             style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w500),
           ),
         ],
@@ -148,19 +216,22 @@ class DevicesPage extends StatelessWidget {
             child: Icon(icon, color: const Color(0xFFD32F2F), size: 24),
           ),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black54, letterSpacing: 0.5),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
-              ),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black54, letterSpacing: 0.5),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -212,8 +283,7 @@ class DevicesPage extends StatelessWidget {
                 ],
               ),
             ),
-            if (trailingWidget != null) ...[trailingWidget, const SizedBox(width: 8)],
-            const Icon(Icons.more_vert, color: Colors.black38, size: 20),
+            if (trailingWidget != null) trailingWidget,
           ],
         ),
       ),

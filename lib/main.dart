@@ -6,12 +6,20 @@ import 'pages/files_page.dart';
 import 'pages/messages_page.dart';
 import 'pages/settings_page.dart';
 import 'services/discovery_service.dart';
+import 'services/connection_service.dart';
 
 void main() {
+  final connectionService = ConnectionService();
+  final discoveryService = DiscoveryService();
+
+  // 将两个服务关联起来
+  discoveryService.setConnectionService(connectionService);
+
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => DiscoveryService()),
+        ChangeNotifierProvider.value(value: connectionService),
+        ChangeNotifierProvider.value(value: discoveryService),
       ],
       child: const MyApp(),
     ),
@@ -83,6 +91,7 @@ class _ResponsiveScaffoldState extends State<ResponsiveScaffold> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width > 600;
+    final connectionService = context.watch<ConnectionService>();
 
     return Scaffold(
       appBar: AppBar(
@@ -96,9 +105,29 @@ class _ResponsiveScaffoldState extends State<ResponsiveScaffold> {
           ],
         ),
         actions: [
+          // 连接状态指示器
+          if (connectionService.connectedPeers.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Chip(
+                avatar: const Icon(Icons.link, color: Colors.white, size: 16),
+                label: Text('${connectionService.connectedPeers.length}',
+                    style: const TextStyle(color: Colors.white, fontSize: 12)),
+                backgroundColor: Colors.green,
+                padding: EdgeInsets.zero,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
           IconButton(
-            icon: const Icon(Icons.sync, color: Color(0xFFD32F2F)),
-            onPressed: () {},
+            icon: Icon(
+              connectionService.isRunning ? Icons.wifi : Icons.wifi_off,
+              color: connectionService.isRunning ? Colors.green : const Color(0xFFD32F2F),
+            ),
+            onPressed: () {
+              if (!connectionService.isRunning) {
+                connectionService.startServer();
+              }
+            },
           )
         ],
       ),

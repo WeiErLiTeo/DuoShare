@@ -1,90 +1,161 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../services/connection_service.dart';
+import '../models/duo_message.dart';
 
-class ClipboardPage extends StatelessWidget {
+class ClipboardPage extends StatefulWidget {
   const ClipboardPage({Key? key}) : super(key: key);
 
   @override
+  State<ClipboardPage> createState() => _ClipboardPageState();
+}
+
+class _ClipboardPageState extends State<ClipboardPage> {
+  final List<DuoMessage> _clipboardHistory = [];
+  StreamSubscription<DuoMessage>? _subscription;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final cs = context.read<ConnectionService>();
+      // 从历史记录中加载已有的剪贴板消息
+      _clipboardHistory.addAll(
+        cs.messageHistory.where((m) => m.type == MessageType.clipboard),
+      );
+      // 监听新的剪贴板消息
+      _subscription = cs.messageStream.listen((msg) {
+        if (msg.type == MessageType.clipboard) {
+          setState(() {
+            _clipboardHistory.insert(0, msg);
+          });
+        }
+      });
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final connection = context.watch<ConnectionService>();
+
     return Scaffold(
       backgroundColor: const Color(0xFFFFFFFF),
-      body: ListView(
-        padding: const EdgeInsets.all(16.0),
+      body: Column(
         children: [
-          _buildSearchBar(),
-          const SizedBox(height: 16),
-          _buildFilterChips(),
-          const SizedBox(height: 24),
-          const Text(
-            '最近活动',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.black54,
-              letterSpacing: 1.0,
-            ),
+          // 搜索栏
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: _buildSearchBar(),
           ),
           const SizedBox(height: 12),
-          _buildClipboardCard(
-            context: context,
-            icon: Icons.laptop_windows,
-            device: 'WINDOWS PC',
-            time: '2分钟前',
-            child: const Text('https://github.com/google/material-design-icons/releases/tag/4.0.0', style: TextStyle(fontWeight: FontWeight.w500)),
+
+          // 筛选 Chips
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _buildFilterChips(),
           ),
-          _buildClipboardCard(
-            context: context,
-            icon: Icons.smartphone,
-            device: 'PIXEL 8 PRO',
-            time: '15分钟前',
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF2F4F5),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
-              ),
-              child: const Text(
-                'const observer = new IntersectionObserver((entries) => {\n  entries.forEach(entry => console.log(entry));\n});',
-                style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.black87),
-              ),
-            ),
+          const SizedBox(height: 16),
+
+          // 列表内容
+          Expanded(
+            child: _clipboardHistory.isEmpty
+                ? _buildEmptyState(connection)
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: _clipboardHistory.length,
+                    itemBuilder: (context, index) {
+                      final msg = _clipboardHistory[index];
+                      return _buildClipboardCard(
+                        context: context,
+                        icon: Icons.devices,
+                        device: msg.senderName.toUpperCase(),
+                        time: _formatTime(msg.timestamp),
+                        content: msg.payload,
+                      );
+                    },
+                  ),
           ),
-          _buildClipboardCard(
-            context: context,
-            icon: Icons.tablet_mac,
-            device: 'IPAD AIR',
-            time: '1小时前',
-            child: const Text('晚上7点在5街和主街交汇处集合，参加团队晚宴。别忘了带报告！'),
-          ),
-          _buildClipboardCard(
-            context: context,
-            icon: Icons.laptop_windows,
-            device: 'WINDOWS PC',
-            time: '3小时前',
-            child: Container(
-              width: double.infinity,
-              height: 160,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF2F4F5),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
-                image: const DecorationImage(
-                  image: NetworkImage('https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=600&auto=format&fit=crop'),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 80),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {},
-        backgroundColor: const Color(0xFFD32F2F),
-        child: const Icon(Icons.delete_sweep, color: Colors.white),
+      floatingActionButton: connection.connectedPeers.isNotEmpty
+          ? FloatingActionButton(
+              onPressed: () => _sendCurrentClipboard(connection),
+              backgroundColor: const Color(0xFFD32F2F),
+              child: const Icon(Icons.content_paste_go, color: Colors.white),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildEmptyState(ConnectionService connection) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.content_paste_off, size: 64, color: Colors.grey.withValues(alpha: 0.2)),
+            const SizedBox(height: 20),
+            const Text(
+              '暂无剪贴板记录',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black54),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              connection.connectedPeers.isEmpty
+                  ? '连接设备后，可以互相推送剪贴板内容'
+                  : '点击右下角按钮发送当前剪贴板内容',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13, color: Colors.black38),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _sendCurrentClipboard(ConnectionService connection) async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (data?.text != null && data!.text!.isNotEmpty) {
+      connection.sendClipboard(data.text!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('剪贴板内容已推送'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('剪贴板为空'),
+            backgroundColor: Color(0xFFD32F2F),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  String _formatTime(DateTime time) {
+    final now = DateTime.now();
+    final diff = now.difference(time);
+    if (diff.inMinutes < 1) return '刚刚';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}分钟前';
+    if (diff.inHours < 24) return '${diff.inHours}小时前';
+    return '${time.month}/${time.day} ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 
   Widget _buildSearchBar() {
@@ -141,7 +212,13 @@ class ClipboardPage extends StatelessWidget {
     );
   }
 
-  Widget _buildClipboardCard({required BuildContext context, required IconData icon, required String device, required String time, required Widget child}) {
+  Widget _buildClipboardCard({
+    required BuildContext context,
+    required IconData icon,
+    required String device,
+    required String time,
+    required String content,
+  }) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
@@ -174,22 +251,18 @@ class ClipboardPage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            child,
+            Text(content, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.delete, size: 20),
-                  color: const Color(0xFFD32F2F),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  splashRadius: 20,
-                ),
-                const SizedBox(width: 16),
                 InkWell(
-                  onTap: () {},
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: content));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('已复制到剪贴板'), duration: Duration(seconds: 1)),
+                    );
+                  },
                   borderRadius: BorderRadius.circular(20),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:nsd/nsd.dart';
+import 'connection_service.dart';
 
 class DiscoveryService extends ChangeNotifier {
   static const String _serviceType = '_duoshare._tcp';
@@ -18,12 +19,20 @@ class DiscoveryService extends ChangeNotifier {
   String _localDeviceName = 'Unknown Device';
   String get localDeviceName => _localDeviceName;
 
+  /// 对 ConnectionService 的引用，用于获取真实端口和发起连接
+  ConnectionService? _connectionService;
+
   DiscoveryService() {
     _initLocalName();
   }
 
+  /// 注入 ConnectionService 引用
+  void setConnectionService(ConnectionService cs) {
+    _connectionService = cs;
+    cs.setLocalName(_localDeviceName);
+  }
+
   void _initLocalName() {
-    // 权宜之计：使用系统的 localHostname 作为广播名称，或生成随机ID
     try {
       _localDeviceName = Platform.localHostname;
     } catch (e) {
@@ -36,9 +45,18 @@ class DiscoveryService extends ChangeNotifier {
   Future<void> beginScanning() async {
     if (_isDiscovering) return;
     
-    // 如果还未注册自己，马上注册一个随机端口的空壳服务，好让别人能发现我们
-    if (_registration == null) {
-      await registerMyDevice(Random().nextInt(10000) + 40000);
+    // 确保 ConnectionService 的 WebSocket 服务端已启动
+    if (_connectionService != null && !_connectionService!.isRunning) {
+      final port = await _connectionService!.startServer();
+      if (port == 0) {
+        if (kDebugMode) print('[DiscoveryService] Failed to start WebSocket server');
+        return;
+      }
+    }
+
+    // 用真实的 WebSocket 服务端口注册 mDNS
+    if (_registration == null && _connectionService != null) {
+      await registerMyDevice(_connectionService!.serverPort);
     }
 
     try {
@@ -77,6 +95,17 @@ class DiscoveryService extends ChangeNotifier {
     _isDiscovering = false;
     _devices.clear();
     notifyListeners();
+  }
+
+  /// 主动连接到发现的设备
+  Future<bool> connectToDevice(Service service) async {
+    if (_connectionService == null) return false;
+    final host = service.host;
+    final port = service.port;
+    final name = service.name ?? 'Unknown';
+    if (host == null || port == null) return false;
+
+    return await _connectionService!.connectToPeer(name, host, port);
   }
 
   /// 启动 HTTP 时将本机注册广播至局域网

@@ -1,206 +1,276 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/connection_service.dart';
+import '../models/duo_message.dart';
 
-class MessagesPage extends StatelessWidget {
+class MessagesPage extends StatefulWidget {
   const MessagesPage({Key? key}) : super(key: key);
 
   @override
+  State<MessagesPage> createState() => _MessagesPageState();
+}
+
+class _MessagesPageState extends State<MessagesPage> {
+  final TextEditingController _textController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  StreamSubscription<DuoMessage>? _subscription;
+
+  @override
+  void initState() {
+    super.initState();
+    // 监听消息流，有新消息时滚动到底部
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final cs = context.read<ConnectionService>();
+      _subscription = cs.messageStream.listen((_) {
+        _scrollToBottom();
+      });
+    });
+  }
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    _textController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final connection = context.watch<ConnectionService>();
+    final messages = connection.messageHistory
+        .where((m) => m.type == MessageType.text)
+        .toList();
+
     return Scaffold(
       backgroundColor: const Color(0xFFFFFFFF),
-      body: ListView(
-        padding: const EdgeInsets.all(16.0),
+      body: Column(
         children: [
-          const Text(
-            '消息',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-              fontFamily: 'Manrope',
-            ),
-          ),
-          const SizedBox(height: 20),
+          // 连接状态栏
+          _buildStatusBar(connection),
 
-          // Search Indicator
-          Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF2F4F5),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(width: 8, height: 8, decoration: const BoxDecoration(color: Color(0xFFD32F2F), shape: BoxShape.circle)),
-                  const SizedBox(width: 8),
-                  const Text('正在搜索本地网络设备...', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black54)),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Message List
-          _buildMessageItem(
-            icon: Icons.laptop_mac,
-            name: 'MacBook Pro (办公桌)',
-            time: '10:45 AM',
-            message: '文件 "项目提案_草案.pdf" 已成功接收。',
-            unreadCount: 2,
-            isActive: true,
-            isOnline: true,
-          ),
-          _buildMessageItem(
-            icon: Icons.smartphone,
-            name: 'iPhone 15 Pro',
-            time: '昨天',
-            message: '你需要我把照片发给你吗？',
-          ),
-          _buildMessageItem(
-            icon: Icons.dns,
-            name: '家庭媒体服务器',
-            time: '星期二',
-            message: '图片 已发送',
-            isPhoto: true,
-          ),
-          _buildMessageItem(
-            icon: Icons.tablet_android,
-            name: 'iPad Air',
-            time: '10月24日',
-            message: '链接：https://github.com/...',
-            opacity: 0.6,
+          // 消息列表
+          Expanded(
+            child: messages.isEmpty
+                ? _buildEmptyState(connection)
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final msg = messages[index];
+                      final isMe = msg.senderName == connection.localName;
+                      return _buildMessageBubble(msg, isMe);
+                    },
+                  ),
           ),
 
-          const SizedBox(height: 48),
-
-          // Empty State Mock
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFB),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.grey.withValues(alpha: 0.3), style: BorderStyle.none), // Custom dashed borders usually require a package, using subtle solid here
-            ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Icon(Icons.wifi_tethering, size: 48, color: Colors.black26),
-                SizedBox(height: 16),
-                Text('发现新设备', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87, fontFamily: 'Manrope')),
-                SizedBox(height: 8),
-                Text(
-                  '连接到同一 Wi-Fi 网络即可开始即时本地聊天和文件分享。',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Colors.black54),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 80),
+          // 输入框
+          if (connection.connectedPeers.isNotEmpty) _buildInputBar(connection),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {},
-        backgroundColor: const Color(0xFFD32F2F),
-        child: const Icon(Icons.add_comment, color: Colors.white),
       ),
     );
   }
 
-  Widget _buildMessageItem({
-    required IconData icon,
-    required String name,
-    required String time,
-    required String message,
-    int unreadCount = 0,
-    bool isActive = false,
-    bool isOnline = false,
-    bool isPhoto = false,
-    double opacity = 1.0,
-  }) {
-    return Opacity(
-      opacity: opacity,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isActive ? const Color(0xFFFFFFFF) : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: isActive
-              ? [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))]
-              : null,
-        ),
-        child: Row(
-          children: [
-            Stack(
-              children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: isActive ? const Color(0xFFD32F2F).withValues(alpha: 0.1) : const Color(0xFFF2F4F5),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, color: isActive ? const Color(0xFFD32F2F) : Colors.black38, size: 28),
+  Widget _buildStatusBar(ConnectionService connection) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF2F4F5),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: connection.connectedPeers.isNotEmpty ? Colors.green : const Color(0xFFD32F2F),
+                  shape: BoxShape.circle,
                 ),
-                if (isOnline)
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      width: 14,
-                      height: 14,
-                      decoration: BoxDecoration(
-                        color: Colors.green,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                connection.connectedPeers.isNotEmpty
+                    ? '已连接 ${connection.connectedPeers.length} 台设备'
+                    : '未连接任何设备',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black54),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(ConnectionService connection) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              connection.connectedPeers.isEmpty ? Icons.wifi_tethering : Icons.chat_bubble_outline,
+              size: 64,
+              color: Colors.black12,
+            ),
+            const SizedBox(height: 20),
+            Text(
+              connection.connectedPeers.isEmpty ? '暂无连接' : '暂无消息',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black54),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              connection.connectedPeers.isEmpty
+                  ? '前往"设备"页面扫描并连接局域网内的设备'
+                  : '发送一条消息开始对话吧',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13, color: Colors.black38),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(DuoMessage message, bool isMe) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (!isMe) ...[
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: const Color(0xFFD32F2F).withValues(alpha: 0.1),
+              child: Text(
+                message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : '?',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFD32F2F)),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Flexible(
+            child: Column(
+              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                if (!isMe)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4, left: 4),
+                    child: Text(
+                      message.senderName,
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black54),
                     ),
                   ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isMe ? const Color(0xFFD32F2F) : const Color(0xFFF2F4F5),
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(16),
+                      topRight: const Radius.circular(16),
+                      bottomLeft: Radius.circular(isMe ? 16 : 4),
+                      bottomRight: Radius.circular(isMe ? 4 : 16),
+                    ),
+                  ),
+                  child: Text(
+                    message.payload,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isMe ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+                  child: Text(
+                    '${message.timestamp.hour.toString().padLeft(2, '0')}:${message.timestamp.minute.toString().padLeft(2, '0')}',
+                    style: const TextStyle(fontSize: 10, color: Colors.black38),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(width: 16),
+          ),
+          if (isMe) const SizedBox(width: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputBar(ConnectionService connection) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey.withValues(alpha: 0.15))),
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87, fontFamily: 'Manrope'), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      Text(time, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isActive ? const Color(0xFFD32F2F) : Colors.black38)),
-                    ],
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF2F4F5),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: TextField(
+                  controller: _textController,
+                  decoration: const InputDecoration(
+                    hintText: '输入消息...',
+                    hintStyle: TextStyle(fontSize: 14, color: Colors.black38),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(vertical: 10),
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            if (isPhoto) const Padding(padding: EdgeInsets.only(right: 4), child: Icon(Icons.image, size: 14, color: Colors.black54)),
-                            Expanded(child: Text(message, style: TextStyle(fontSize: 14, fontWeight: isActive ? FontWeight.w600 : FontWeight.normal, color: Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                          ],
-                        ),
-                      ),
-                      if (unreadCount > 0)
-                        Container(
-                          margin: const EdgeInsets.only(left: 8),
-                          width: 20,
-                          height: 20,
-                          decoration: const BoxDecoration(color: Color(0xFFD32F2F), shape: BoxShape.circle),
-                          child: Center(child: Text(unreadCount.toString(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))),
-                        ),
-                    ],
-                  ),
-                ],
+                  onSubmitted: (_) => _sendMessage(connection),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            InkWell(
+              onTap: () => _sendMessage(connection),
+              borderRadius: BorderRadius.circular(24),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFD32F2F),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.send, color: Colors.white, size: 20),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  void _sendMessage(ConnectionService connection) {
+    final text = _textController.text.trim();
+    if (text.isEmpty) return;
+
+    connection.sendTextMessage(text);
+    _textController.clear();
+    _scrollToBottom();
   }
 }
