@@ -17,21 +17,22 @@ jobs:
         with:
           distribution: "zulu"
           java-version: "17"
+          cache: "gradle"
       
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: "stable"
           cache: true
-          
+
       - name: Get dependencies
         run: flutter pub get
         
-      - name: Build APK
-        run: flutter build apk --release
+      - name: Build APK (split per ABI)
+        run: flutter build apk --release --split-per-abi
         
-      - name: Upload APK Release
+      - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: DuoShare-Release-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: DuoShare-Release-APKs
+          path: build/app/outputs/flutter-apk/app-*-release.apk

@@ -28,7 +28,7 @@ class FilesPage extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // Category Grid
+          // 统计卡片
           Row(
             children: [
               Expanded(
@@ -48,6 +48,43 @@ class FilesPage extends StatelessWidget {
                   subtitle: '${fileRecords.where((f) => f.senderName != connection.localName).length} 个文件',
                   color: const Color(0xFFa12424),
                   height: 120,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildCategoryCard(
+                  icon: Icons.image,
+                  title: '图片',
+                  subtitle: '${_countByType(fileRecords, _imageExts)} 个',
+                  color: Colors.blue,
+                  height: 80,
+                  isMinimal: true,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildCategoryCard(
+                  icon: Icons.description,
+                  title: '文档',
+                  subtitle: '${_countByType(fileRecords, _docExts)} 个',
+                  color: Colors.orange,
+                  height: 80,
+                  isMinimal: true,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildCategoryCard(
+                  icon: Icons.folder_zip,
+                  title: '压缩包',
+                  subtitle: '${_countByType(fileRecords, _archiveExts)} 个',
+                  color: Colors.black54,
+                  height: 80,
+                  isMinimal: true,
                 ),
               ),
             ],
@@ -309,32 +346,45 @@ class FilesPage extends StatelessWidget {
     return '${time.month}/${time.day}';
   }
 
+  // 文件类型分类
+  static const _imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
+  static const _docExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md'];
+  static const _archiveExts = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2'];
+
+  int _countByType(List<FileRecord> records, List<String> exts) {
+    return records.where((r) {
+      final ext = r.fileName.split('.').last.toLowerCase();
+      return exts.contains(ext);
+    }).length;
+  }
+
   Widget _buildCategoryCard({
     required IconData icon,
     required String title,
     required String subtitle,
     required Color color,
     required double height,
+    bool isMinimal = false,
   }) {
     return Container(
       height: height,
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(isMinimal ? 12 : 16),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(isMinimal ? 12 : 16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Icon(icon, size: 32, color: color),
+          Icon(icon, size: isMinimal ? 22 : 32, color: color),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                      fontSize: isMinimal ? 13 : 16,
                       color: Colors.black87,
                       fontFamily: 'Manrope')),
               const SizedBox(height: 2),
