@@ -5,6 +5,9 @@ import '../services/connection_service.dart';
 import '../services/storage_helper.dart';
 import '../services/database_service.dart';
 
+import 'dart:io';
+import '../services/startup_service.dart';
+
 class SettingsPage extends StatefulWidget {
   const SettingsPage({Key? key}) : super(key: key);
 
@@ -16,10 +19,12 @@ class _SettingsPageState extends State<SettingsPage> {
   int _cacheSize = 0;
   int _fileCount = 0;
   String _savePath = '加载中...';
+  bool _autoStart = false;
 
   @override
   void initState() {
     super.initState();
+    _autoStart = StartupService.isEnabled();
     _loadStorageInfo();
   }
 
@@ -110,7 +115,22 @@ class _SettingsPageState extends State<SettingsPage> {
               }
             },
           ),
-
+          
+          if (Platform.isWindows) ...[
+            _buildSwitchTile(
+              icon: Icons.power_settings_new,
+              title: '开机自动启动',
+              subtitle: _autoStart ? 'Windows 登录时自动运行 (免注册表)' : '未开启',
+              value: _autoStart,
+              onChanged: (value) async {
+                await StartupService.toggleStartup(value);
+                setState(() {
+                  _autoStart = value;
+                });
+              },
+            ),
+          ],
+          
           const SizedBox(height: 24),
 
           // 存储管理
