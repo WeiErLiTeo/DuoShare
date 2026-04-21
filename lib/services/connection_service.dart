@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:path_provider/path_provider.dart';
+import 'storage_helper.dart';
 import '../models/duo_message.dart';
 
 /// 对等连接信息
@@ -399,14 +399,9 @@ class ConnectionService extends ChangeNotifier {
 
       if (kDebugMode) print('[ConnectionService] Downloading file: $fileName from $downloadUrl');
 
-      // 创建保存目录
-      final dir = await getApplicationDocumentsDirectory();
-      final saveDir = Directory('${dir.path}/DuoShare');
-      if (!await saveDir.exists()) {
-        await saveDir.create(recursive: true);
-      }
-
-      final savePath = '${saveDir.path}/$fileName';
+      // 保存到平台对应的下载目录 (Android: Download/DuoShare, Windows: Downloads/DuoShare)
+      final saveDir = await StorageHelper.getSavePath();
+      final savePath = '$saveDir${Platform.pathSeparator}$fileName';
       final saveFile = File(savePath);
 
       // 通过 HTTP GET 流式下载（不占内存）

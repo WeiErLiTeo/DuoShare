@@ -2,9 +2,38 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/discovery_service.dart';
 import '../services/connection_service.dart';
+import '../services/storage_helper.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({Key? key}) : super(key: key);
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  int _cacheSize = 0;
+  int _fileCount = 0;
+  String _savePath = '加载中...';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStorageInfo();
+  }
+
+  Future<void> _loadStorageInfo() async {
+    final path = await StorageHelper.getSavePath();
+    final size = await StorageHelper.getCacheSize();
+    final count = await StorageHelper.getFileCount();
+    if (mounted) {
+      setState(() {
+        _savePath = path;
+        _cacheSize = size;
+        _fileCount = count;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +56,9 @@ class SettingsPage extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // 设备信息卡片
+          // 设备信息
+          _buildSectionHeader('设备信息'),
+          const SizedBox(height: 12),
           _buildInfoCard(
             icon: Icons.devices,
             title: '本机名称',
@@ -52,7 +83,6 @@ class SettingsPage extends StatelessWidget {
           // 服务状态
           _buildSectionHeader('服务状态'),
           const SizedBox(height: 12),
-
           _buildSwitchTile(
             icon: Icons.wifi_tethering,
             title: 'WebSocket 服务',
@@ -82,6 +112,30 @@ class SettingsPage extends StatelessWidget {
 
           const SizedBox(height: 24),
 
+          // 存储管理
+          _buildSectionHeader('存储管理'),
+          const SizedBox(height: 12),
+          _buildInfoCard(
+            icon: Icons.folder,
+            title: '文件保存位置',
+            value: _savePath,
+          ),
+          const SizedBox(height: 12),
+          _buildInfoCard(
+            icon: Icons.storage,
+            title: '已用空间',
+            value: '$_fileCount 个文件 · ${StorageHelper.formatSize(_cacheSize)}',
+          ),
+          const SizedBox(height: 12),
+          _buildActionButton(
+            icon: Icons.delete_sweep,
+            title: '清除已接收的文件',
+            subtitle: '删除 DuoShare 目录中的所有文件',
+            onTap: () => _showClearCacheDialog(context),
+          ),
+
+          const SizedBox(height: 24),
+
           // 连接管理
           if (connection.connectedPeers.isNotEmpty) ...[
             _buildSectionHeader('连接管理'),
@@ -106,9 +160,41 @@ class SettingsPage extends StatelessWidget {
           _buildInfoCard(
             icon: Icons.code,
             title: '协议',
-            value: 'WebSocket + mDNS (局域网传输)',
+            value: 'WebSocket + mDNS + HTTP (局域网传输)',
           ),
           const SizedBox(height: 80),
+        ],
+      ),
+    );
+  }
+
+  void _showClearCacheDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('清除缓存', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text('确定要删除 DuoShare 文件夹中的所有文件吗？\n\n当前：$_fileCount 个文件，${StorageHelper.formatSize(_cacheSize)}'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final messenger = ScaffoldMessenger.of(context);
+              final success = await StorageHelper.clearCache();
+              if (mounted) {
+                messenger.showSnackBar(SnackBar(
+                  content: Text(success ? '缓存已清除' : '清除失败'),
+                  backgroundColor: success ? Colors.green : const Color(0xFFD32F2F),
+                ));
+                _loadStorageInfo();
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFD32F2F)),
+            child: const Text('确认删除', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
         ],
       ),
     );
@@ -155,7 +241,7 @@ class SettingsPage extends StatelessWidget {
               children: [
                 Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black54)),
                 const SizedBox(height: 2),
-                Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
+                Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87), maxLines: 2, overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
@@ -199,6 +285,43 @@ class SettingsPage extends StatelessWidget {
             activeTrackColor: const Color(0xFFD32F2F),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFFFF),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFD32F2F).withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: const Color(0xFFD32F2F), size: 24),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFD32F2F))),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Color(0xFFD32F2F)),
+          ],
+        ),
       ),
     );
   }
