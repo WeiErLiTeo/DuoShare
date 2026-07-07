@@ -25,7 +25,7 @@ class PeerConnection {
 }
 
 /// WebSocket 连接管理器
-/// 
+///
 /// 每台设备同时充当服务端（接受连接）和客户端（发起连接）。
 /// HTTP 服务端同时提供 WebSocket 升级和文件下载功能。
 class ConnectionService extends ChangeNotifier {
@@ -67,9 +67,11 @@ class ConnectionService extends ChangeNotifier {
   /// 文件传输进度流
   final StreamController<TransferProgress> _transferProgressController =
       StreamController<TransferProgress>.broadcast();
-  Stream<TransferProgress> get transferProgressStream => _transferProgressController.stream;
+  Stream<TransferProgress> get transferProgressStream =>
+      _transferProgressController.stream;
   final Map<String, TransferProgress> _activeTransfers = {};
-  Map<String, TransferProgress> get activeTransfers => Map.unmodifiable(_activeTransfers);
+  Map<String, TransferProgress> get activeTransfers =>
+      Map.unmodifiable(_activeTransfers);
 
   String _localName = 'Unknown';
   String get localName => _localName;
@@ -90,7 +92,9 @@ class ConnectionService extends ChangeNotifier {
       _fileRecords.addAll(files);
       _dbLoaded = true;
       notifyListeners();
-      if (kDebugMode) print('[ConnectionService] Loaded ${messages.length} messages, ${files.length} file records from DB');
+      if (kDebugMode)
+        print(
+            '[ConnectionService] Loaded ${messages.length} messages, ${files.length} file records from DB');
     } catch (e) {
       if (kDebugMode) print('[ConnectionService] DB load error: $e');
     }
@@ -115,7 +119,8 @@ class ConnectionService extends ChangeNotifier {
       _isRunning = true;
       notifyListeners();
 
-      if (kDebugMode) print('[ConnectionService] Server started on port $_serverPort');
+      if (kDebugMode)
+        print('[ConnectionService] Server started on port $_serverPort');
 
       _server!.listen(_handleHttpRequest);
       _startHeartbeat();
@@ -151,7 +156,7 @@ class ConnectionService extends ChangeNotifier {
   /// 处理文件下载请求
   void _handleFileDownload(HttpRequest request) async {
     final fileId = request.uri.path.replaceFirst('/file/', '');
-    
+
     // 在共享文件中查找对应的本地路径
     String? filePath;
     for (final entry in _sharedFiles.entries) {
@@ -181,13 +186,13 @@ class ConnectionService extends ChangeNotifier {
     try {
       final fileSize = await file.length();
       final fileName = filePath.split(Platform.pathSeparator).last;
-      
+
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.set('Content-Type', 'application/octet-stream')
         ..headers.set('Content-Disposition', 'attachment; filename="$fileName"')
         ..headers.set('Content-Length', '$fileSize');
-      
+
       // 发送端进度追踪（手动分块替代 pipe）
       final transferId = 'upload_${DateTime.now().millisecondsSinceEpoch}';
       final tp = TransferProgress(
@@ -204,7 +209,7 @@ class ConnectionService extends ChangeNotifier {
       await for (final chunk in file.openRead()) {
         request.response.add(chunk);
         tp.receivedBytes += chunk.length;
-        
+
         final now = DateTime.now();
         if (now.difference(lastUpdate).inMilliseconds > 300) {
           lastUpdate = now;
@@ -218,8 +223,9 @@ class ConnectionService extends ChangeNotifier {
       _transferProgressController.add(tp);
       _activeTransfers.remove(transferId);
       notifyListeners();
-      
-      if (kDebugMode) print('[ConnectionService] File served: $fileName ($fileSize bytes)');
+
+      if (kDebugMode)
+        print('[ConnectionService] File served: $fileName ($fileSize bytes)');
     } catch (e) {
       if (kDebugMode) print('[ConnectionService] File serve error: $e');
       try {
@@ -247,7 +253,8 @@ class ConnectionService extends ChangeNotifier {
           if (peerName.startsWith('Peer_')) {
             peerName = message.senderName;
             if (_peers.containsKey(peerName)) {
-              if (kDebugMode) print('[ConnectionService] Duplicate peer $peerName, ignoring');
+              if (kDebugMode)
+                print('[ConnectionService] Duplicate peer $peerName, ignoring');
               channel.sink.close();
               sub.cancel();
               return;
@@ -258,16 +265,19 @@ class ConnectionService extends ChangeNotifier {
               subscription: sub,
             );
             notifyListeners();
-            if (kDebugMode) print('[ConnectionService] Peer identified: $peerName');
+            if (kDebugMode)
+              print('[ConnectionService] Peer identified: $peerName');
           }
 
           // 处理心跳
           if (message.type == MessageType.ping) {
-            _sendTo(peerName, DuoMessage(
-              type: MessageType.pong,
-              senderName: _localName,
-              payload: '',
-            ));
+            _sendTo(
+                peerName,
+                DuoMessage(
+                  type: MessageType.pong,
+                  senderName: _localName,
+                  payload: '',
+                ));
             return;
           }
 
@@ -283,9 +293,11 @@ class ConnectionService extends ChangeNotifier {
 
           // 服务端侧也触发系统通知
           if (message.type == MessageType.text) {
-            NotificationService.showMessage(senderName: message.senderName, content: message.payload);
+            NotificationService.showMessage(
+                senderName: message.senderName, content: message.payload);
           } else if (message.type == MessageType.clipboard) {
-            NotificationService.showClipboard(senderName: message.senderName, content: message.payload);
+            NotificationService.showClipboard(
+                senderName: message.senderName, content: message.payload);
           }
 
           notifyListeners();
@@ -295,7 +307,8 @@ class ConnectionService extends ChangeNotifier {
       },
       onDone: () => _removePeer(peerName),
       onError: (error) {
-        if (kDebugMode) print('[ConnectionService] Peer $peerName error: $error');
+        if (kDebugMode)
+          print('[ConnectionService] Peer $peerName error: $error');
         _removePeer(peerName);
       },
     );
@@ -341,18 +354,22 @@ class ConnectionService extends ChangeNotifier {
             DatabaseService.insertMessage(message, isMine: false);
             // 触发系统通知
             if (message.type == MessageType.text) {
-              NotificationService.showMessage(senderName: message.senderName, content: message.payload);
+              NotificationService.showMessage(
+                  senderName: message.senderName, content: message.payload);
             } else if (message.type == MessageType.clipboard) {
-              NotificationService.showClipboard(senderName: message.senderName, content: message.payload);
+              NotificationService.showClipboard(
+                  senderName: message.senderName, content: message.payload);
             }
             notifyListeners();
           } catch (e) {
-            if (kDebugMode) print('[ConnectionService] Parse error from $name: $e');
+            if (kDebugMode)
+              print('[ConnectionService] Parse error from $name: $e');
           }
         },
         onDone: () => _removePeer(name),
         onError: (error) {
-          if (kDebugMode) print('[ConnectionService] Connection error with $name: $error');
+          if (kDebugMode)
+            print('[ConnectionService] Connection error with $name: $error');
           _removePeer(name);
         },
       );
@@ -363,17 +380,21 @@ class ConnectionService extends ChangeNotifier {
         subscription: sub,
       );
 
-      _sendTo(name, DuoMessage(
-        type: MessageType.ping,
-        senderName: _localName,
-        payload: '',
-      ));
+      _sendTo(
+          name,
+          DuoMessage(
+            type: MessageType.ping,
+            senderName: _localName,
+            payload: '',
+          ));
 
       notifyListeners();
-      if (kDebugMode) print('[ConnectionService] Connected to $name at $host:$port');
+      if (kDebugMode)
+        print('[ConnectionService] Connected to $name at $host:$port');
       return true;
     } catch (e) {
-      if (kDebugMode) print('[ConnectionService] Failed to connect to $name: $e');
+      if (kDebugMode)
+        print('[ConnectionService] Failed to connect to $name: $e');
       return false;
     }
   }
@@ -386,7 +407,8 @@ class ConnectionService extends ChangeNotifier {
       try {
         peer.channel.sink.add(message.toJson());
       } catch (e) {
-        if (kDebugMode) print('[ConnectionService] Send error to $peerName: $e');
+        if (kDebugMode)
+          print('[ConnectionService] Send error to $peerName: $e');
       }
     }
   }
@@ -395,12 +417,14 @@ class ConnectionService extends ChangeNotifier {
     _messageHistory.add(message);
     _messageController.add(message);
     // 持久化到数据库
-    DatabaseService.insertMessage(message, isMine: message.senderName == _localName);
+    DatabaseService.insertMessage(message,
+        isMine: message.senderName == _localName);
     for (final peer in _peers.values) {
       try {
         peer.channel.sink.add(message.toJson());
       } catch (e) {
-        if (kDebugMode) print('[ConnectionService] Broadcast error to ${peer.name}: $e');
+        if (kDebugMode)
+          print('[ConnectionService] Broadcast error to ${peer.name}: $e');
       }
     }
     notifyListeners();
@@ -446,7 +470,8 @@ class ConnectionService extends ChangeNotifier {
       final fileName = filePath.split(Platform.pathSeparator).last;
 
       // 生成唯一文件ID，注册到 HTTP 共享列表
-      final fileId = '${DateTime.now().millisecondsSinceEpoch}_${fileName.hashCode.abs()}';
+      final fileId =
+          '${DateTime.now().millisecondsSinceEpoch}_${fileName.hashCode.abs()}';
       _sharedFiles[filePath] = fileId;
 
       // 获取本机 IP 地址用于拼接下载链接
@@ -477,7 +502,9 @@ class ConnectionService extends ChangeNotifier {
 
       broadcast(message);
 
-      if (kDebugMode) print('[ConnectionService] File shared: $fileName ($fileSize bytes) at $downloadUrl');
+      if (kDebugMode)
+        print(
+            '[ConnectionService] File shared: $fileName ($fileSize bytes) at $downloadUrl');
       return null;
     } catch (e) {
       if (kDebugMode) print('[ConnectionService] File share error: $e');
@@ -489,10 +516,13 @@ class ConnectionService extends ChangeNotifier {
   Future<void> _handleFileOffer(DuoMessage message) async {
     try {
       final downloadUrl = message.payload;
-      final fileName = message.metadata?['fileName'] as String? ?? 'unknown_file';
+      final fileName =
+          message.metadata?['fileName'] as String? ?? 'unknown_file';
       final fileSize = message.metadata?['fileSize'] as int? ?? 0;
 
-      if (kDebugMode) print('[ConnectionService] Downloading file: $fileName from $downloadUrl');
+      if (kDebugMode)
+        print(
+            '[ConnectionService] Downloading file: $fileName from $downloadUrl');
 
       // 保存到平台对应的下载目录 (Android: Download/DuoShare, Windows: Downloads/DuoShare)
       final saveDir = await StorageHelper.getSavePath();
@@ -508,7 +538,7 @@ class ConnectionService extends ChangeNotifier {
         // 进度追踪下载（替代 pipe，支持进度回调）
         final transferId = '${DateTime.now().millisecondsSinceEpoch}';
         final notifyId = transferId.hashCode; // 用于通知ID
-        
+
         final tp = TransferProgress(
           id: transferId,
           fileName: fileName,
@@ -520,21 +550,24 @@ class ConnectionService extends ChangeNotifier {
         notifyListeners();
 
         NotificationService.showTransferProgress(
-          id: notifyId, fileName: fileName, progress: 0, total: fileSize);
+            id: notifyId, fileName: fileName, progress: 0, total: fileSize);
 
         final sink = saveFile.openWrite();
         DateTime lastUpdate = DateTime.now();
-        
+
         await for (final chunk in response) {
           sink.add(chunk);
           tp.receivedBytes += chunk.length;
           _transferProgressController.add(tp);
-          
+
           final now = DateTime.now();
           if (now.difference(lastUpdate).inMilliseconds > 500) {
             lastUpdate = now;
             NotificationService.showTransferProgress(
-              id: notifyId, fileName: fileName, progress: tp.receivedBytes, total: fileSize);
+                id: notifyId,
+                fileName: fileName,
+                progress: tp.receivedBytes,
+                total: fileSize);
           }
         }
         await sink.close();
@@ -565,9 +598,12 @@ class ConnectionService extends ChangeNotifier {
           fileSize: record.fileSizeFormatted,
         );
 
-        if (kDebugMode) print('[ConnectionService] File downloaded: $fileName -> $savePath');
+        if (kDebugMode)
+          print('[ConnectionService] File downloaded: $fileName -> $savePath');
       } else {
-        if (kDebugMode) print('[ConnectionService] Download failed: HTTP ${response.statusCode}');
+        if (kDebugMode)
+          print(
+              '[ConnectionService] Download failed: HTTP ${response.statusCode}');
       }
 
       client.close();
@@ -669,7 +705,8 @@ class ConnectionService extends ChangeNotifier {
       await Future.delayed(const Duration(seconds: 5));
       if (_peers.containsKey(name)) return; // 已经连上了
 
-      if (kDebugMode) print('[ConnectionService] Reconnect attempt $i/6 to $name');
+      if (kDebugMode)
+        print('[ConnectionService] Reconnect attempt $i/6 to $name');
       final result = await connectToPeer(name, host, port);
       if (result) {
         if (kDebugMode) print('[ConnectionService] Reconnected to $name');

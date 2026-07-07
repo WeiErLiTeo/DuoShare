@@ -16,7 +16,8 @@ class NotificationService {
   static Future<void> initialize() async {
     if (_initialized) return;
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
 
     // 平台特定初始化
     InitializationSettings initSettings;
@@ -45,14 +46,16 @@ class NotificationService {
       final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
 
-      await androidPlugin?.createNotificationChannel(const AndroidNotificationChannel(
+      await androidPlugin
+          ?.createNotificationChannel(const AndroidNotificationChannel(
         'duo_messages',
         '消息通知',
         description: '收到新消息时通知',
         importance: Importance.high,
       ));
 
-      await androidPlugin?.createNotificationChannel(const AndroidNotificationChannel(
+      await androidPlugin
+          ?.createNotificationChannel(const AndroidNotificationChannel(
         'duo_files',
         '文件传输',
         description: '文件传输完成时通知',
@@ -112,7 +115,8 @@ class NotificationService {
     await _plugin.show(
       id: _notificationId++,
       title: '📋 剪贴板同步',
-      body: '来自 $senderName: ${content.length > 60 ? '${content.substring(0, 60)}...' : content}',
+      body:
+          '来自 $senderName: ${content.length > 60 ? '${content.substring(0, 60)}...' : content}',
       notificationDetails: details,
     );
   }
@@ -144,6 +148,7 @@ class NotificationService {
       notificationDetails: details,
     );
   }
+
   /// 显示文件接收进度通知 (Android 原生进度条模式)
   static Future<void> showTransferProgress({
     required int id,

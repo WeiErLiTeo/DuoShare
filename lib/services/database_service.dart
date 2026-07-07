@@ -4,7 +4,7 @@ import 'package:path/path.dart' as p;
 import '../models/duo_message.dart';
 
 /// SQLite 数据库服务
-/// 
+///
 /// 持久化消息、剪贴板、文件传输记录
 class DatabaseService {
   static Database? _db;
@@ -60,7 +60,8 @@ class DatabaseService {
   // ==================== 消息操作 ====================
 
   /// 插入一条消息记录
-  static Future<void> insertMessage(DuoMessage message, {bool isMine = false}) async {
+  static Future<void> insertMessage(DuoMessage message,
+      {bool isMine = false}) async {
     final db = await database;
     await db.insert('messages', {
       'type': message.type.name,
@@ -95,21 +96,27 @@ class DatabaseService {
       limit: limit,
     );
 
-    return rows.map((row) => DuoMessage(
-      type: MessageType.values.firstWhere(
-        (e) => e.name == row['type'],
-        orElse: () => MessageType.text,
-      ),
-      senderName: row['sender_name'] as String,
-      payload: row['payload'] as String,
-      timestamp: DateTime.tryParse(row['timestamp'] as String) ?? DateTime.now(),
-    )).toList().reversed.toList(); // 反转为时间正序
+    return rows
+        .map((row) => DuoMessage(
+              type: MessageType.values.firstWhere(
+                (e) => e.name == row['type'],
+                orElse: () => MessageType.text,
+              ),
+              senderName: row['sender_name'] as String,
+              payload: row['payload'] as String,
+              timestamp: DateTime.tryParse(row['timestamp'] as String) ??
+                  DateTime.now(),
+            ))
+        .toList()
+        .reversed
+        .toList(); // 反转为时间正序
   }
 
   // ==================== 文件记录操作 ====================
 
   /// 插入文件传输记录
-  static Future<void> insertFileRecord(FileRecord record, {bool isMine = false}) async {
+  static Future<void> insertFileRecord(FileRecord record,
+      {bool isMine = false}) async {
     final db = await database;
     await db.insert('file_records', {
       'file_name': record.fileName,
@@ -130,17 +137,20 @@ class DatabaseService {
       limit: limit,
     );
 
-    return rows.map((row) => FileRecord(
-      fileName: row['file_name'] as String,
-      fileSize: row['file_size'] as int,
-      senderName: row['sender_name'] as String,
-      timestamp: DateTime.tryParse(row['timestamp'] as String) ?? DateTime.now(),
-      localPath: row['local_path'] as String?,
-    )).toList();
+    return rows
+        .map((row) => FileRecord(
+              fileName: row['file_name'] as String,
+              fileSize: row['file_size'] as int,
+              senderName: row['sender_name'] as String,
+              timestamp: DateTime.tryParse(row['timestamp'] as String) ??
+                  DateTime.now(),
+              localPath: row['local_path'] as String?,
+            ))
+        .toList();
   }
 
   // ==================== 清理操作 ====================
-  
+
   /// 删除单个文件记录
   static Future<void> deleteFileRecord(FileRecord record) async {
     final db = await database;

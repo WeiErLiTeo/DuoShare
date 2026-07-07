@@ -7,7 +7,8 @@ class StartupService {
   static String get _shortcutPath {
     final appData = Platform.environment['APPDATA'];
     if (appData == null) return '';
-    return p.join(appData, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'DuoShare.lnk');
+    return p.join(appData, 'Microsoft', 'Windows', 'Start Menu', 'Programs',
+        'Startup', 'DuoShare.lnk');
   }
 
   /// 检查是否已开启开机自启（只需判断快捷方式是否存在）
@@ -28,7 +29,8 @@ class StartupService {
     final workingDir = p.dirname(targetPath);
 
     if (enable) {
-      if (kDebugMode) print('[StartupService] Enabling startup shortcut at $shortcutPath');
+      if (kDebugMode)
+        print('[StartupService] Enabling startup shortcut at $shortcutPath');
       // 使用 PowerShell WScript.Shell 动态创建快捷方式，免注册表，纯粹绿色
       final script = '''
 \$WshShell = New-Object -comObject WScript.Shell

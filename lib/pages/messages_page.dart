@@ -56,7 +56,7 @@ class _MessagesPageState extends State<MessagesPage> {
         .toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFFFF),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           // 连接状态栏
@@ -68,7 +68,8 @@ class _MessagesPageState extends State<MessagesPage> {
                 ? _buildEmptyState(connection)
                 : ListView.builder(
                     controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     itemCount: messages.length,
                     itemBuilder: (context, index) {
                       final msg = messages[index];
@@ -102,7 +103,9 @@ class _MessagesPageState extends State<MessagesPage> {
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: connection.connectedPeers.isNotEmpty ? Colors.green : const Color(0xFFD32F2F),
+                  color: connection.connectedPeers.isNotEmpty
+                      ? Colors.green
+                      : const Color(0xFFD32F2F),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -111,7 +114,10 @@ class _MessagesPageState extends State<MessagesPage> {
                 connection.connectedPeers.isNotEmpty
                     ? '已连接 ${connection.connectedPeers.length} 台设备'
                     : '未连接任何设备',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black54),
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black54),
               ),
             ],
           ),
@@ -128,14 +134,19 @@ class _MessagesPageState extends State<MessagesPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              connection.connectedPeers.isEmpty ? Icons.wifi_tethering : Icons.chat_bubble_outline,
+              connection.connectedPeers.isEmpty
+                  ? Icons.wifi_tethering
+                  : Icons.chat_bubble_outline,
               size: 64,
               color: Colors.black12,
             ),
             const SizedBox(height: 20),
             Text(
               connection.connectedPeers.isEmpty ? '暂无连接' : '暂无消息',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black54),
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: Colors.black54),
             ),
             const SizedBox(height: 8),
             Text(
@@ -155,7 +166,8 @@ class _MessagesPageState extends State<MessagesPage> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
-        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment:
+            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMe) ...[
@@ -163,28 +175,40 @@ class _MessagesPageState extends State<MessagesPage> {
               radius: 16,
               backgroundColor: const Color(0xFFD32F2F).withValues(alpha: 0.1),
               child: Text(
-                message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : '?',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFD32F2F)),
+                message.senderName.isNotEmpty
+                    ? message.senderName[0].toUpperCase()
+                    : '?',
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFD32F2F)),
               ),
             ),
             const SizedBox(width: 8),
           ],
           Flexible(
             child: Column(
-              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
                 if (!isMe)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4, left: 4),
                     child: Text(
                       message.senderName,
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black54),
+                      style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black54),
                     ),
                   ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: isMe ? const Color(0xFFD32F2F) : const Color(0xFFF2F4F5),
+                    color: isMe
+                        ? const Color(0xFFD32F2F)
+                        : const Color(0xFFF2F4F5),
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(16),
                       topRight: const Radius.circular(16),
@@ -221,7 +245,8 @@ class _MessagesPageState extends State<MessagesPage> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.withValues(alpha: 0.15))),
+        border:
+            Border(top: BorderSide(color: Colors.grey.withValues(alpha: 0.15))),
       ),
       child: SafeArea(
         child: Row(

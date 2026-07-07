@@ -49,10 +49,11 @@ class _ClipboardPageState extends State<ClipboardPage> {
 
     // 搜索过滤
     if (_searchQuery.isNotEmpty) {
-      list = list.where((m) =>
-        m.payload.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-        m.senderName.toLowerCase().contains(_searchQuery.toLowerCase())
-      ).toList();
+      list = list
+          .where((m) =>
+              m.payload.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+              m.senderName.toLowerCase().contains(_searchQuery.toLowerCase()))
+          .toList();
     }
 
     // 类型筛选
@@ -61,19 +62,34 @@ class _ClipboardPageState extends State<ClipboardPage> {
     } else if (_selectedFilter == '代码') {
       list = list.where((m) => _isCode(m.payload)).toList();
     } else if (_selectedFilter == '文本') {
-      list = list.where((m) => !_isUrl(m.payload) && !_isCode(m.payload)).toList();
+      list =
+          list.where((m) => !_isUrl(m.payload) && !_isCode(m.payload)).toList();
     }
 
     return list;
   }
 
   bool _isUrl(String text) {
-    return text.contains('http://') || text.contains('https://') || text.contains('www.');
+    return text.contains('http://') ||
+        text.contains('https://') ||
+        text.contains('www.');
   }
 
   bool _isCode(String text) {
     // 简单判断：包含代码特征字符
-    final codePatterns = ['{', '}', '=>', 'function', 'class ', 'import ', 'const ', 'var ', 'let ', 'def ', 'return '];
+    final codePatterns = [
+      '{',
+      '}',
+      '=>',
+      'function',
+      'class ',
+      'import ',
+      'const ',
+      'var ',
+      'let ',
+      'def ',
+      'return '
+    ];
     return codePatterns.any((p) => text.contains(p));
   }
 
@@ -133,13 +149,17 @@ class _ClipboardPageState extends State<ClipboardPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.content_paste_off, size: 64, color: Colors.grey.withValues(alpha: 0.2)),
+            Icon(Icons.content_paste_off,
+                size: 64, color: Colors.grey.withValues(alpha: 0.2)),
             const SizedBox(height: 20),
             Text(
               _searchQuery.isNotEmpty || _selectedFilter != '全部'
                   ? '没有匹配的记录'
                   : '暂无剪贴板记录',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black54),
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: Colors.black54),
             ),
             const SizedBox(height: 8),
             Text(
@@ -161,11 +181,17 @@ class _ClipboardPageState extends State<ClipboardPage> {
     if (data?.text != null && data!.text!.isNotEmpty) {
       connection.sendClipboard(data.text!);
       messenger.showSnackBar(
-        const SnackBar(content: Text('剪贴板内容已推送'), backgroundColor: Colors.green, duration: Duration(seconds: 2)),
+        const SnackBar(
+            content: Text('剪贴板内容已推送'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2)),
       );
     } else {
       messenger.showSnackBar(
-        const SnackBar(content: Text('剪贴板为空'), backgroundColor: Color(0xFFD32F2F), duration: Duration(seconds: 2)),
+        const SnackBar(
+            content: Text('剪贴板为空'),
+            backgroundColor: Color(0xFFD32F2F),
+            duration: Duration(seconds: 2)),
       );
     }
   }
@@ -211,9 +237,12 @@ class _ClipboardPageState extends State<ClipboardPage> {
             child: GestureDetector(
               onTap: () => setState(() => _selectedFilter = label),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFFD32F2F) : const Color(0xFFE6E8E9),
+                  color: isSelected
+                      ? const Color(0xFFD32F2F)
+                      : const Color(0xFFE6E8E9),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -261,23 +290,40 @@ class _ClipboardPageState extends State<ClipboardPage> {
                   children: [
                     Icon(icon, size: 16, color: const Color(0xFFD32F2F)),
                     const SizedBox(width: 6),
-                    Text('来自: $device', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black54, letterSpacing: 0.5)),
+                    Text('来自: $device',
+                        style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black54,
+                            letterSpacing: 0.5)),
                     const SizedBox(width: 8),
                     // 类型标签
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: isUrl ? Colors.blue.withValues(alpha: 0.1) : (isCode ? Colors.orange.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.1)),
+                        color: isUrl
+                            ? Colors.blue.withValues(alpha: 0.1)
+                            : (isCode
+                                ? Colors.orange.withValues(alpha: 0.1)
+                                : Colors.grey.withValues(alpha: 0.1)),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         isUrl ? '链接' : (isCode ? '代码' : '文本'),
-                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isUrl ? Colors.blue : (isCode ? Colors.orange : Colors.black54)),
+                        style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: isUrl
+                                ? Colors.blue
+                                : (isCode ? Colors.orange : Colors.black54)),
                       ),
                     ),
                   ],
                 ),
-                Text(time, style: const TextStyle(fontSize: 10, color: Colors.black38)),
+                Text(time,
+                    style:
+                        const TextStyle(fontSize: 10, color: Colors.black38)),
               ],
             ),
             const SizedBox(height: 12),
@@ -290,9 +336,15 @@ class _ClipboardPageState extends State<ClipboardPage> {
                       color: const Color(0xFFF2F4F5),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(content, style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.black87)),
+                    child: Text(content,
+                        style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 12,
+                            color: Colors.black87)),
                   )
-                : Text(content, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
+                : Text(content,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w500, fontSize: 14)),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -301,21 +353,29 @@ class _ClipboardPageState extends State<ClipboardPage> {
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: content));
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('已复制到剪贴板'), duration: Duration(seconds: 1)),
+                      const SnackBar(
+                          content: Text('已复制到剪贴板'),
+                          duration: Duration(seconds: 1)),
                     );
                   },
                   borderRadius: BorderRadius.circular(20),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: const Color(0xFFD32F2F).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Row(
                       children: [
-                        Icon(Icons.content_copy, size: 16, color: Color(0xFFD32F2F)),
+                        Icon(Icons.content_copy,
+                            size: 16, color: Color(0xFFD32F2F)),
                         SizedBox(width: 4),
-                        Text('复制', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFD32F2F))),
+                        Text('复制',
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFD32F2F))),
                       ],
                     ),
                   ),

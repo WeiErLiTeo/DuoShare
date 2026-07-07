@@ -11,6 +11,8 @@ import 'pages/settings_page.dart';
 import 'services/discovery_service.dart';
 import 'services/connection_service.dart';
 import 'services/notification_service.dart';
+import 'services/theme_service.dart';
+import 'services/snackbar_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +27,7 @@ void main() {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   final connectionService = ConnectionService();
+  final themeService = ThemeService();
   final discoveryService = DiscoveryService();
   discoveryService.setConnectionService(connectionService);
 
@@ -42,6 +45,7 @@ void main() {
       providers: [
         ChangeNotifierProvider.value(value: connectionService),
         ChangeNotifierProvider.value(value: discoveryService),
+        ChangeNotifierProvider.value(value: themeService),
       ],
       child: const MyApp(),
     ),
@@ -67,17 +71,24 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeService = context.watch<ThemeService>();
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
+        statusBarIconBrightness: themeService.themeMode == ThemeMode.dark
+            ? Brightness.light
+            : Brightness.dark,
         systemNavigationBarColor: Colors.transparent,
         systemNavigationBarDividerColor: Colors.transparent,
       ),
       child: MaterialApp(
+        scaffoldMessengerKey: SnackBarService.scaffoldMessengerKey,
         title: 'DuoShare',
         debugShowCheckedModeBanner: false,
+        themeMode: themeService.themeMode,
         theme: _buildJapaneseRedWhiteTheme(),
+        darkTheme: _buildDarkJapaneseRedTheme(),
         home: const ResponsiveScaffold(),
       ),
     );
@@ -86,9 +97,9 @@ class MyApp extends StatelessWidget {
   // 全局红白主题 (ThemeData)
   ThemeData _buildJapaneseRedWhiteTheme() {
     return ThemeData(
-      useMaterial3: false, // 遵循 Android 10 (Material 2) 风格
+      useMaterial3: false,
       primaryColor: const Color(0xFFD32F2F), // 日式红
-      scaffoldBackgroundColor: const Color(0xFFFFFFFF), // 纯白背景
+      scaffoldBackgroundColor: const Color(0xFFF9F9F9), // 浅灰白背景
       colorScheme: const ColorScheme.light(
         primary: Color(0xFFD32F2F),
         secondary: Color(0xFFD32F2F),
@@ -96,18 +107,52 @@ class MyApp extends StatelessWidget {
       ),
       fontFamily: 'Manrope',
       appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFFFFFFFF), // AppBar 背景与页面融合
-        foregroundColor: Color(0xFFD32F2F), // 标题颜色
+        backgroundColor: Color(0xFFFFFFFF),
+        foregroundColor: Color(0xFFD32F2F),
         elevation: 0,
         centerTitle: false,
       ),
       cardTheme: CardThemeData(
         color: const Color(0xFFFFFFFF),
-        elevation: 1.0, // 极小阴影
+        elevation: 1.0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8.0),
         ),
         margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+      ),
+    );
+  }
+
+  // 纯粹的日式暗红色搭配深黑背景
+  ThemeData _buildDarkJapaneseRedTheme() {
+    return ThemeData(
+      useMaterial3: false,
+      primaryColor: const Color(0xFFE53935), // 稍微提亮的日式红
+      scaffoldBackgroundColor: const Color(0xFF121212), // 深黑背景
+      colorScheme: const ColorScheme.dark(
+        primary: Color(0xFFE53935),
+        secondary: Color(0xFFE53935),
+        surface: Color(0xFF1E1E1E),
+      ),
+      fontFamily: 'Manrope',
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xFF1E1E1E),
+        foregroundColor: Color(0xFFE53935),
+        elevation: 0,
+        centerTitle: false,
+      ),
+      cardTheme: CardThemeData(
+        color: const Color(0xFF1E1E1E),
+        elevation: 1.0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8.0),
+        ),
+        margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: Color(0xFF1E1E1E),
+        selectedItemColor: Color(0xFFE53935),
+        unselectedItemColor: Colors.white54,
       ),
     );
   }
@@ -165,7 +210,9 @@ class _ResponsiveScaffoldState extends State<ResponsiveScaffold> {
           IconButton(
             icon: Icon(
               connectionService.isRunning ? Icons.wifi : Icons.wifi_off,
-              color: connectionService.isRunning ? Colors.green : const Color(0xFFD32F2F),
+              color: connectionService.isRunning
+                  ? Colors.green
+                  : const Color(0xFFD32F2F),
             ),
             onPressed: () {
               if (!connectionService.isRunning) {
@@ -220,7 +267,9 @@ class _ResponsiveScaffoldState extends State<ResponsiveScaffold> {
               type: BottomNavigationBarType.fixed,
               selectedItemColor: const Color(0xFFD32F2F),
               unselectedItemColor: Colors.black54,
-              backgroundColor: const Color(0xFFFFFFFF),
+              backgroundColor:
+                  Theme.of(context).bottomNavigationBarTheme.backgroundColor ??
+                      const Color(0xFFFFFFFF),
               elevation: 4.0,
               items: const [
                 BottomNavigationBarItem(icon: Icon(Icons.devices), label: '设备'),

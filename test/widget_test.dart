@@ -1,30 +1,43 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:provider/provider.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:duoshare/main.dart';
+import 'package:duoshare/services/connection_service.dart';
+import 'package:duoshare/services/discovery_service.dart';
+import 'package:duoshare/services/theme_service.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+  setUpAll(() {
+    // Initialize FFI for unit tests on desktop/CI.
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  });
+
+  testWidgets('DuoShare smoke test', (WidgetTester tester) async {
+    // Create actual services, but ensure they don't break during tests
+    final connectionService = ConnectionService();
+    final discoveryService = DiscoveryService();
+    discoveryService.setConnectionService(connectionService);
+
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: connectionService),
+          ChangeNotifierProvider.value(value: discoveryService),
+          ChangeNotifierProvider.value(value: ThemeService()),
+        ],
+        child: const MyApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Verify that DuoShare title is rendered
+    expect(find.text('DuoShare'), findsWidgets);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify some tabs are present
+    expect(find.text('设备'), findsWidgets);
+    expect(find.text('文件'), findsWidgets);
+    expect(find.text('设置'), findsWidgets);
   });
 }

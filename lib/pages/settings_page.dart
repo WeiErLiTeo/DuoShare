@@ -7,6 +7,7 @@ import '../services/database_service.dart';
 
 import 'dart:io';
 import '../services/startup_service.dart';
+import '../services/theme_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({Key? key}) : super(key: key);
@@ -51,6 +52,15 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
+          _buildSectionHeader('外观'),
+          ListTile(
+            title: const Text('主题模式'),
+            subtitle: Text(_getThemeName(context)),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () => _showThemePicker(context),
+          ),
+          const Divider(),
+
           const Text(
             '设置',
             style: TextStyle(
@@ -92,7 +102,9 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildSwitchTile(
             icon: Icons.wifi_tethering,
             title: 'WebSocket 服务',
-            subtitle: connection.isRunning ? '正在监听端口 ${connection.serverPort}' : '未运行',
+            subtitle: connection.isRunning
+                ? '正在监听端口 ${connection.serverPort}'
+                : '未运行',
             value: connection.isRunning,
             onChanged: (value) async {
               if (value) {
@@ -115,7 +127,7 @@ class _SettingsPageState extends State<SettingsPage> {
               }
             },
           ),
-          
+
           if (Platform.isWindows) ...[
             _buildSwitchTile(
               icon: Icons.power_settings_new,
@@ -130,7 +142,7 @@ class _SettingsPageState extends State<SettingsPage> {
               },
             ),
           ],
-          
+
           const SizedBox(height: 24),
 
           // 存储管理
@@ -169,10 +181,10 @@ class _SettingsPageState extends State<SettingsPage> {
             _buildSectionHeader('连接管理'),
             const SizedBox(height: 12),
             ...connection.connectedPeers.map((name) => _buildPeerTile(
-              context: context,
-              name: name,
-              connection: connection,
-            )),
+                  context: context,
+                  name: name,
+                  connection: connection,
+                )),
             const SizedBox(height: 24),
           ],
 
@@ -200,8 +212,10 @@ class _SettingsPageState extends State<SettingsPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('清除缓存', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Text('确定要删除 DuoShare 文件夹中的所有文件吗？\n\n当前：$_fileCount 个文件，${StorageHelper.formatSize(_cacheSize)}'),
+        title:
+            const Text('清除缓存', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(
+            '确定要删除 DuoShare 文件夹中的所有文件吗？\n\n当前：$_fileCount 个文件，${StorageHelper.formatSize(_cacheSize)}'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -215,13 +229,16 @@ class _SettingsPageState extends State<SettingsPage> {
               if (mounted) {
                 messenger.showSnackBar(SnackBar(
                   content: Text(success ? '缓存已清除' : '清除失败'),
-                  backgroundColor: success ? Colors.green : const Color(0xFFD32F2F),
+                  backgroundColor:
+                      success ? Colors.green : const Color(0xFFD32F2F),
                 ));
                 _loadStorageInfo();
               }
             },
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFD32F2F)),
-            child: const Text('确认删除', style: TextStyle(fontWeight: FontWeight.bold)),
+            style:
+                TextButton.styleFrom(foregroundColor: const Color(0xFFD32F2F)),
+            child: const Text('确认删除',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -232,7 +249,8 @@ class _SettingsPageState extends State<SettingsPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('清除聊天记录', style: TextStyle(fontWeight: FontWeight.bold)),
+        title:
+            const Text('清除聊天记录', style: TextStyle(fontWeight: FontWeight.bold)),
         content: const Text('确定要删除所有消息和剪贴板同步记录吗？\n\n此操作不可恢复。'),
         actions: [
           TextButton(
@@ -246,12 +264,15 @@ class _SettingsPageState extends State<SettingsPage> {
               await DatabaseService.clearMessages();
               if (mounted) {
                 messenger.showSnackBar(
-                  const SnackBar(content: Text('聊天记录已清除'), backgroundColor: Colors.green),
+                  const SnackBar(
+                      content: Text('聊天记录已清除'), backgroundColor: Colors.green),
                 );
               }
             },
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFD32F2F)),
-            child: const Text('确认删除', style: TextStyle(fontWeight: FontWeight.bold)),
+            style:
+                TextButton.styleFrom(foregroundColor: const Color(0xFFD32F2F)),
+            child: const Text('确认删除',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -297,9 +318,19 @@ class _SettingsPageState extends State<SettingsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black54)),
+                Text(title,
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black54)),
                 const SizedBox(height: 2),
-                Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87), maxLines: 2, overflow: TextOverflow.ellipsis),
+                Text(value,
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
@@ -331,9 +362,15 @@ class _SettingsPageState extends State<SettingsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
+                Text(title,
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87)),
                 const SizedBox(height: 2),
-                Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+                Text(subtitle,
+                    style:
+                        const TextStyle(fontSize: 11, color: Colors.black54)),
               ],
             ),
           ),
@@ -361,7 +398,8 @@ class _SettingsPageState extends State<SettingsPage> {
         decoration: BoxDecoration(
           color: const Color(0xFFFFFFFF),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFD32F2F).withValues(alpha: 0.3)),
+          border:
+              Border.all(color: const Color(0xFFD32F2F).withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [
@@ -371,9 +409,15 @@ class _SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFD32F2F))),
+                  Text(title,
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFD32F2F))),
                   const SizedBox(height: 2),
-                  Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+                  Text(subtitle,
+                      style:
+                          const TextStyle(fontSize: 11, color: Colors.black54)),
                 ],
               ),
             ),
@@ -405,9 +449,14 @@ class _SettingsPageState extends State<SettingsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
+                Text(name,
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87)),
                 const SizedBox(height: 2),
-                const Text('WebSocket 已连接', style: TextStyle(fontSize: 11, color: Colors.green)),
+                const Text('WebSocket 已连接',
+                    style: TextStyle(fontSize: 11, color: Colors.green)),
               ],
             ),
           ),
@@ -415,16 +464,73 @@ class _SettingsPageState extends State<SettingsPage> {
             onPressed: () {
               connection.disconnectPeer(name);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('已断开 $name'), duration: const Duration(seconds: 2)),
+                SnackBar(
+                    content: Text('已断开 $name'),
+                    duration: const Duration(seconds: 2)),
               );
             },
             style: TextButton.styleFrom(
               foregroundColor: const Color(0xFFD32F2F),
               padding: const EdgeInsets.symmetric(horizontal: 12),
             ),
-            child: const Text('断开', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            child: const Text('断开',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           ),
         ],
+      ),
+    );
+  }
+
+  String _getThemeName(BuildContext context) {
+    final themeService = context.watch<ThemeService>();
+    switch (themeService.themeMode) {
+      case ThemeMode.system:
+        return '系统默认';
+      case ThemeMode.light:
+        return '日间模式 (浅色)';
+      case ThemeMode.dark:
+        return '夜间模式 (深色)';
+    }
+  }
+
+  void _showThemePicker(BuildContext context) {
+    final themeService = context.read<ThemeService>();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('选择主题'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RadioListTile<ThemeMode>(
+              title: const Text('系统默认'),
+              value: ThemeMode.system,
+              groupValue: themeService.themeMode,
+              onChanged: (val) {
+                if (val != null) themeService.setTheme(val);
+                Navigator.pop(context);
+              },
+            ),
+            RadioListTile<ThemeMode>(
+              title: const Text('日间模式 (浅色)'),
+              value: ThemeMode.light,
+              groupValue: themeService.themeMode,
+              onChanged: (val) {
+                if (val != null) themeService.setTheme(val);
+                Navigator.pop(context);
+              },
+            ),
+            RadioListTile<ThemeMode>(
+              title: const Text('夜间模式 (深色)'),
+              value: ThemeMode.dark,
+              groupValue: themeService.themeMode,
+              onChanged: (val) {
+                if (val != null) themeService.setTheme(val);
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

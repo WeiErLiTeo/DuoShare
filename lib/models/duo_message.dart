@@ -2,11 +2,11 @@ import 'dart:convert';
 
 /// 消息类型枚举
 enum MessageType {
-  text,       // 普通文本消息
-  clipboard,  // 剪贴板同步
-  fileOffer,  // 文件传输通知 (payload = HTTP 下载链接, metadata = {fileName, fileSize})
-  ping,       // 心跳检测
-  pong,       // 心跳回应
+  text, // 普通文本消息
+  clipboard, // 剪贴板同步
+  fileOffer, // 文件传输通知 (payload = HTTP 下载链接, metadata = {fileName, fileSize})
+  ping, // 心跳检测
+  pong, // 心跳回应
 }
 
 /// DuoShare 统一消息协议
@@ -54,7 +54,8 @@ class DuoMessage {
   }
 
   @override
-  String toString() => 'DuoMessage(type: ${type.name}, sender: $senderName, payload: ${payload.length > 50 ? '${payload.substring(0, 50)}...' : payload})';
+  String toString() =>
+      'DuoMessage(type: ${type.name}, sender: $senderName, payload: ${payload.length > 50 ? '${payload.substring(0, 50)}...' : payload})';
 }
 
 /// 文件传输记录
@@ -75,8 +76,10 @@ class FileRecord {
 
   String get fileSizeFormatted {
     if (fileSize < 1024) return '$fileSize B';
-    if (fileSize < 1024 * 1024) return '${(fileSize / 1024).toStringAsFixed(1)} KB';
-    if (fileSize < 1024 * 1024 * 1024) return '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (fileSize < 1024 * 1024)
+      return '${(fileSize / 1024).toStringAsFixed(1)} KB';
+    if (fileSize < 1024 * 1024 * 1024)
+      return '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(fileSize / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 }

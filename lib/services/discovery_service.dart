@@ -7,10 +7,10 @@ import 'connection_service.dart';
 
 class DiscoveryService extends ChangeNotifier {
   static const String _serviceType = '_duoshare._tcp';
-  
+
   Registration? _registration;
   Discovery? _discovery;
-  
+
   bool _isDiscovering = false;
   bool get isDiscovering => _isDiscovering;
 
@@ -52,9 +52,11 @@ class DiscoveryService extends ChangeNotifier {
         _localDeviceName = Platform.localHostname;
       }
     } catch (e) {
-      _localDeviceName = Platform.localHostname.isNotEmpty ? Platform.localHostname : 'Device_${Random().nextInt(1000)}';
+      _localDeviceName = Platform.localHostname.isNotEmpty
+          ? Platform.localHostname
+          : 'Device_${Random().nextInt(1000)}';
     }
-    
+
     notifyListeners();
     if (_connectionService != null) {
       _connectionService!.setLocalName(_localDeviceName);
@@ -64,12 +66,13 @@ class DiscoveryService extends ChangeNotifier {
   /// 开始雷达扫描发现设备
   Future<void> beginScanning() async {
     if (_isDiscovering) return;
-    
+
     // 确保 ConnectionService 的 WebSocket 服务端已启动
     if (_connectionService != null && !_connectionService!.isRunning) {
       final port = await _connectionService!.startServer();
       if (port == 0) {
-        if (kDebugMode) print('[DiscoveryService] Failed to start WebSocket server');
+        if (kDebugMode)
+          print('[DiscoveryService] Failed to start WebSocket server');
         return;
       }
     }
@@ -95,8 +98,8 @@ class DiscoveryService extends ChangeNotifier {
             }
           }
         } else if (status == ServiceStatus.lost) {
-           _devices.removeWhere((d) => d.name == service.name);
-           notifyListeners();
+          _devices.removeWhere((d) => d.name == service.name);
+          notifyListeners();
         }
       });
     } catch (e) {
@@ -132,7 +135,8 @@ class DiscoveryService extends ChangeNotifier {
         final addresses = await InternetAddress.lookup(host);
         if (addresses.isNotEmpty) {
           resolvedHost = addresses.first.address;
-          if (kDebugMode) print('[DiscoveryService] Resolved $host -> $resolvedHost');
+          if (kDebugMode)
+            print('[DiscoveryService] Resolved $host -> $resolvedHost');
         }
       } catch (e) {
         if (kDebugMode) print('[DiscoveryService] Failed to resolve $host: $e');
@@ -140,7 +144,8 @@ class DiscoveryService extends ChangeNotifier {
         final addrs = service.addresses;
         if (addrs != null && addrs.isNotEmpty) {
           resolvedHost = addrs.first.address;
-          if (kDebugMode) print('[DiscoveryService] Using nsd address: $resolvedHost');
+          if (kDebugMode)
+            print('[DiscoveryService] Using nsd address: $resolvedHost');
         } else {
           return false;
         }
@@ -158,7 +163,8 @@ class DiscoveryService extends ChangeNotifier {
         type: _serviceType,
         port: port,
       ));
-      if (kDebugMode) print('Successfully registered $_localDeviceName on port $port');
+      if (kDebugMode)
+        print('Successfully registered $_localDeviceName on port $port');
     } catch (e) {
       if (kDebugMode) print('Registration error: $e');
     }
