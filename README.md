@@ -1,6 +1,6 @@
 <!--
 DuoShare README · Anime Edition
-先把全文中的 YOUR_USERNAME 替换成你的 GitHub 用户名。
+已填入 GitHub 用户名：WeiErLiTeo。
 如果仓库不叫 DuoShare，也请同步替换仓库名。
 角色图链接目前可用，但第三方图床无法承诺永久在线；若追求绝对稳定，请将图片下载到仓库 assets/anime/ 并改成本地路径。
 -->
@@ -14,10 +14,10 @@ DuoShare README · Anime Edition
 </p>
 
 <p align="center">
-  <a href="https://github.com/YOUR_USERNAME/DuoShare/stargazers"><img src="https://img.shields.io/github/stars/YOUR_USERNAME/DuoShare?style=for-the-badge&logo=github&label=STARS&color=ff8fb1" alt="GitHub stars" /></a>
-  <a href="https://github.com/YOUR_USERNAME/DuoShare/network/members"><img src="https://img.shields.io/github/forks/YOUR_USERNAME/DuoShare?style=for-the-badge&logo=github&label=FORKS&color=b9a0ff" alt="GitHub forks" /></a>
-  <a href="https://github.com/YOUR_USERNAME/DuoShare/issues"><img src="https://img.shields.io/github/issues/YOUR_USERNAME/DuoShare?style=for-the-badge&logo=github&label=ISSUES&color=8bd3ff" alt="GitHub issues" /></a>
-  <img src="https://komarev.com/ghpvc/?username=YOUR_USERNAME&style=for-the-badge&color=ff8fb1&label=PROFILE+VISITORS" alt="Profile visitor counter" />
+  <a href="https://github.com/WeiErLiTeo/DuoShare/stargazers"><img src="https://img.shields.io/github/stars/WeiErLiTeo/DuoShare?style=for-the-badge&logo=github&label=STARS&color=ff8fb1" alt="GitHub stars" /></a>
+  <a href="https://github.com/WeiErLiTeo/DuoShare/network/members"><img src="https://img.shields.io/github/forks/WeiErLiTeo/DuoShare?style=for-the-badge&logo=github&label=FORKS&color=b9a0ff" alt="GitHub forks" /></a>
+  <a href="https://github.com/WeiErLiTeo/DuoShare/issues"><img src="https://img.shields.io/github/issues/WeiErLiTeo/DuoShare?style=for-the-badge&logo=github&label=ISSUES&color=8bd3ff" alt="GitHub issues" /></a>
+  <img src="https://komarev.com/ghpvc/?username=WeiErLiTeo&style=for-the-badge&color=ff8fb1&label=PROFILE+VISITORS" alt="Profile visitor counter" />
 </p>
 
 <p align="center">
@@ -108,8 +108,8 @@ DuoShare README · Anime Edition
 ## 🛠️ 快速开始
 
 ```bash
-# 把 YOUR_USERNAME 换成你的 GitHub 用户名
- git clone https://github.com/YOUR_USERNAME/DuoShare.git
+# 把 WeiErLiTeo 换成你的 GitHub 用户名
+ git clone https://github.com/WeiErLiTeo/DuoShare.git
  cd DuoShare
  npm install
  npm start
@@ -120,12 +120,12 @@ DuoShare README · Anime Edition
 ## 📊 开发者状态
 
 <p align="center">
-  <img height="170" src="https://github-stats-extended.vercel.app/api?username=YOUR_USERNAME&show_icons=true&theme=tokyonight&hide_border=true&bg_color=0D1117&title_color=FFB7D5&icon_color=CAB8FF" alt="GitHub statistics" />
-  <img height="170" src="https://github-stats-extended.vercel.app/api/top-langs/?username=YOUR_USERNAME&layout=compact&langs_count=8&theme=tokyonight&hide_border=true&bg_color=0D1117&title_color=FFB7D5" alt="Top programming languages" />
+  <img height="170" src="https://github-stats-extended.vercel.app/api?username=WeiErLiTeo&show_icons=true&theme=tokyonight&hide_border=true&bg_color=0D1117&title_color=FFB7D5&icon_color=CAB8FF" alt="GitHub statistics" />
+  <img height="170" src="https://github-stats-extended.vercel.app/api/top-langs/?username=WeiErLiTeo&layout=compact&langs_count=8&theme=tokyonight&hide_border=true&bg_color=0D1117&title_color=FFB7D5" alt="Top programming languages" />
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/YOUR_USERNAME/DuoShare/output/github-snake.svg" alt="Animated GitHub contribution snake" width="100%" />
+  <img src="https://raw.githubusercontent.com/WeiErLiTeo/DuoShare/output/github-snake.svg" alt="Animated GitHub contribution snake" width="100%" />
 </p>
 
 ## 🔮 看板娘与互动效果
