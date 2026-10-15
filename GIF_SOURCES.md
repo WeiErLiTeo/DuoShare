@@ -22,3 +22,12 @@ README 使用下列原始 GIF，并让每张角色图链接回来源页面。请
 放入仓库后，GitHub Actions 会尝试运行 `Mirror anime GIFs into this repository`，把能成功获取的 GIF 存到 `image/` 并把 README 的图片引用切换成本地文件。若首次上传后没有自动运行，也可以在 **Actions** 页面手动运行该工作流。
 
 外部平台的链接没有谁能保证永久不变；本地镜像成功后，README 中对应的图片就不再依赖原图床。工作流只会替换已验证下载成功的 GIF，失败的仍保留源链接。
+
+## 本地原创动态特效
+
+以下 GIF 是随 DuoShare 配置包生成的本地原创装饰动画，不依赖第三方图片服务：
+
+- `image/sakura-fall.gif` — 樱花飘落与闪光粒子
+- `image/fireworks.gif` — 彩色循环烟花
+- `image/rainbow-divider.gif` — 彩虹动态分隔线
+- `image/pixel-magic.gif` — 像素闪光与魔法文字

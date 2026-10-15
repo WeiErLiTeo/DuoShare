@@ -1,12 +1,18 @@
-DuoShare 二次元 GIF README 配置包
+DuoShare 超标级二次元 README 安装说明
 
 1. 解压 ZIP。
-2. 将其中的 README.md、.github/、scripts/、GIF_SOURCES.md 合并到 https://github.com/WeiErLiTeo/DuoShare 仓库根目录。
-3. 提交并推送后，README 会立即尝试显示在线 GIF。GitHub Actions 若启用，会尝试将 GIF 下载到 image/ 并将成功的图片引用改为仓库本地路径。
-4. 如果镜像工作流未自动执行，打开 GitHub 仓库的 Actions → Mirror anime GIFs into this repository → Run workflow。
-5. 首次运行前，请在 Settings → Actions → General 的 Workflow permissions 中确认允许工作流写入仓库内容（Read and write permissions）。
-6. 蛇形贡献动画由另一个工作流生成，成功后会写入 output 分支。
+2. 将解压目录中的 README.md、image/、scripts/、GIF_SOURCES.md 和 .github/ 合并到 WeiErLiTeo/DuoShare 仓库根目录。
+3. 确认 GitHub 仓库 Settings > Actions > General > Workflow permissions 允许工作流写入仓库内容（Read and write permissions）。
+4. 在 Actions 页面手动运行：
+   - Generate colorful contribution snake
+   - Mirror anime GIFs into this repository
+5. 蛇形动画首次生成后，README 的 output/github-snake.gif 才会出现。
+6. GIF 镜像工作流只会固化实际下载成功的图片；如果 Tenor 链接失效或限制请求，README 会保留原始链接，不会凭空生成角色图。
 
-已填入用户名：WeiErLiTeo
-仓库名按截图设为：DuoShare
-说明：README 保留 npm start 示例；请按实际 package.json 脚本调整。
+特效说明：
+- image/sakura-fall.gif：本地循环樱花飘落与闪光。
+- image/fireworks.gif：本地循环烟花粒子。
+- image/rainbow-divider.gif：本地彩虹粒子分隔线。
+- image/pixel-magic.gif：本地像素魔法动画。
+
+重要限制：GitHub README 会播放 GIF；不会执行 <script>、普通网页 JavaScript 或 CSS 页面动画。因此樱花、烟花和粒子被预先渲染为 GIF。统计卡片、打字 SVG 和计数器来自外部服务，服务维护状态与可用性可能变化。
